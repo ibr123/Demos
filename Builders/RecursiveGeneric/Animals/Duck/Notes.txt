@@ -1,0 +1,29 @@
+﻿* What is `Self` in `DuckBuildAggregator<Self>`?
+
+	1. It's a Generic Type Parameter
+	- Like `T` in `List<T>`, but named `Self` by convention to signal intent.
+	- Meaning: "the most-derived subclass — whoever inherits from me will fill this in."
+
+	2. The Constraint Makes it Self-Referential
+	 `where Self : DuckBuildAggregator<Self>`
+	- Self must be a type that itself inherits from DuckBuildAggregator<Self>.
+	- Forces Self to always be a subclass of the class using it — not any random type.
+
+	3. DuckBuilder is the One That Fills It In
+	public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder>
+	- Self = DuckBuilder gets substituted into the entire chain at compile time.
+	- Without DuckBuilder, no type exists that satisfies the constraint.
+
+	4. Why Not Just T?
+	- You could. Self is only a naming convention to communicate "this represents the class itself."
+
+	5. Practical Effect
+	- Every setter returns Self (= DuckBuilder), so the return type never narrows.
+	- All methods stay accessible in any order after any call.
+	- Without Self, calling one method would return a base type and hide methods from other levels.
+
+* DuckBuilder exists because it is the only type that satisfies where Self : DuckBuildAggregator<Self> — closing the recursive loop. 
+	Without it, no concrete type exists to resolve Self, and Duck.Builder has no non-generic return type.
+
+* DuckBuildAggregator<Self> sits at the top of the inheritance chain as a single named entry point that aggregates all builder methods. Instead of Duck.Builder pointing directly at whichever 
+	builder happens to be topmost, it always points here — so adding or reordering builders in the chain only requires updating DuckBuildAggregator, nothing else.
