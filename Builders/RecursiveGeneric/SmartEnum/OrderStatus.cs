@@ -1,4 +1,4 @@
-namespace Builders.RecursiveGeneric.Enumerations;
+namespace Builders.RecursiveGeneric.SmartEnum;
 
 public sealed class OrderStatus : Enumeration<OrderStatus>
 {

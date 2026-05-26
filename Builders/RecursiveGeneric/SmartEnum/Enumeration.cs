@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Builders.RecursiveGeneric.Enumerations;
+namespace Builders.RecursiveGeneric.SmartEnum;
 
 public abstract class Enumeration<Self> : IComparable
     where Self : Enumeration<Self>

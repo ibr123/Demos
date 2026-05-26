@@ -1,7 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using Builders;
 using Builders.RecursiveGeneric.Animals.Duck;
-using Builders.RecursiveGeneric.Enumerations;
+using Builders.RecursiveGeneric.SmartEnum;
 
 Console.WriteLine("Hello, World!");
 
