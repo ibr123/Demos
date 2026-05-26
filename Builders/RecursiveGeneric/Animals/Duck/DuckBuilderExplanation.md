@@ -210,7 +210,41 @@ We will dedicate section 4 to explaining why this class is necessary.
 
 ---
 
-## 3. Why Use This Chain of Inheritance At All?
+## 3. Why Is `DuckFeatures` Abstract and Not a Plain Class?
+
+Making `DuckFeatures` abstract adds **zero runtime behavior** — it has no abstract
+methods that subclasses are forced to implement. A plain `class` would compile and
+run identically. The sole effect of `abstract` here is to make
+`new DuckFeatures()` a **compile-time error**.
+
+### Why that matters
+
+`DuckFeatures` on its own is useless to a caller:
+
+```csharp
+var f = new DuckFeatures(); // if this were allowed...
+f.Build();                  // returns an empty Duck with all default values
+                            // no .Origin(), .Color(), etc. — those live on subclasses
+```
+
+You'd get a `Duck` with nothing set and no way to set anything. Allowing that call
+would silently succeed and produce a broken result.
+
+### `abstract` as a design signal
+
+It tells anyone reading the code: **this class is infrastructure, not an API.**
+Don't instantiate it, don't expose it — just inherit from it. That is a stronger
+signal than a comment, enforced by the compiler.
+
+| | `abstract class` | plain `class` |
+|---|---|---|
+| Can be instantiated? | No (compile error) | Yes (but pointless) |
+| Pattern still works? | Yes | Yes |
+| Communicates intent? | Clearly | Only by convention |
+
+---
+
+## 4. Why Use This Chain of Inheritance At All?
 
 "Why not just put all four setter methods in one big builder class?"
 

@@ -1,4 +1,40 @@
-﻿* What is `Self` in `DuckBuildAggregator<Self>`?
+﻿* Recursive Generic (CRTP — Curiously Recurring Template Pattern) — Summary
+
+	What it is:
+	- A pattern where a class passes itself as a type argument to its own base class:
+	  `public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder>`
+	- The type parameter (Self) represents "the most-derived class in the hierarchy."
+	- The self-referential constraint `where Self : BaseClass<Self>` ensures only valid
+	  subclasses can fill in Self — not arbitrary types.
+
+	What problem it solves:
+	- In a stacked inheritance chain, calling a method defined on a base class normally
+	  returns the base class type — hiding all methods from subclasses below.
+	- By returning Self instead of the base type, every method returns the most-derived
+	  type (DuckBuilder), so no methods are ever hidden after a call.
+
+	How it works (compile time only):
+	- When DuckBuilder closes the generic with Self = DuckBuilder, the compiler substitutes
+	  DuckBuilder into every method signature across the entire chain.
+	- At runtime there is no recursion, no type expansion — just one object and simple casts.
+
+	Common uses:
+	1. Fluent Builders       — chains where every method must return the full builder type (this project).
+	2. Method chaining APIs  — e.g. query builders, test assertion libraries (FluentAssertions uses this).
+	3. Strongly-typed enums  — a base Enumeration<Self> class where each enum value knows its own type.
+	4. Plugin / extension    — base classes that let subclasses inherit shared behavior while keeping
+	                           their own concrete return type (e.g. Entity<Self> in domain models).
+	5. Mixin simulation      — stacking single-inheritance layers to compose behaviors, since C# has
+	                           no multiple inheritance of classes.
+
+	Key trade-offs:
+	- Pro: fully type-safe, no reflection, no dynamic, no runtime cost.
+	- Pro: all composed methods visible on one concrete type.
+	- Con: inheritance chain is harder to read than a flat class.
+	- Con: adding a new builder requires touching the chain order.
+	- Con: if you need enforced call order, you need a different pattern (Step Builder).
+
+* What is `Self` in `DuckBuildAggregator<Self>`?
 
 	1. It's a Generic Type Parameter
 	- Like `T` in `List<T>`, but named `Self` by convention to signal intent.
@@ -10,7 +46,7 @@
 	- Forces Self to always be a subclass of the class using it — not any random type.
 
 	3. DuckBuilder is the One That Fills It In
-	public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder>
+	`public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder>`
 	- Self = DuckBuilder gets substituted into the entire chain at compile time.
 	- Without DuckBuilder, no type exists that satisfies the constraint.
 
@@ -22,8 +58,32 @@
 	- All methods stay accessible in any order after any call.
 	- Without Self, calling one method would return a base type and hide methods from other levels.
 
-* DuckBuilder exists because it is the only type that satisfies where Self : DuckBuildAggregator<Self> — closing the recursive loop. 
+* DuckBuilder exists because it is the only type that satisfies `where Self : DuckBuildAggregator<Self>` — closing the recursive loop. 
 	Without it, no concrete type exists to resolve Self, and Duck.Builder has no non-generic return type.
 
-* DuckBuildAggregator<Self> sits at the top of the inheritance chain as a single named entry point that aggregates all builder methods. Instead of Duck.Builder pointing directly at whichever 
+* DuckBuildAggregator<Self> sits at the top of the inheritance chain as a single named entry point that aggregates all builder methods. Instead of Duck.Builder pointing directly at whichever
 	builder happens to be topmost, it always points here — so adding or reordering builders in the chain only requires updating DuckBuildAggregator, nothing else.
+
+* Why is DuckFeatures abstract and not a plain class?
+	- A plain class would compile and run identically — DuckFeatures has no abstract methods, so abstract adds zero runtime behavior.
+	- Its only effect is making `new DuckFeatures()` a compile-time error.
+	- DuckFeatures on its own is useless to a caller: it exposes only Build() and the duck field, with none of the fluent setter methods (those live on subclasses).
+	  Allowing direct instantiation would let callers get a Duck object with all default values and no way to set any properties — a silent footgun.
+	- abstract communicates intent: this class is infrastructure, not an API. Don't instantiate it, just inherit from it.
+
+	  Summary:
+	  | | abstract class | plain class |
+	  |---|---|---|
+	  | Can be instantiated? | No (compile error) | Yes (but pointless) |
+	  | Pattern still works? | Yes | Yes |
+	  | Communicates intent? | Clearly | Only by convention |
+
+* The builder call sequence does NOT have to be in order.
+	- Because Self always resolves to DuckBuilder, every method always returns DuckBuilder.
+	- That means all methods are always visible and callable — in any order, at any time.
+	- .Color().Origin().AgeInMonths().Wight() is just as valid as any other order.
+	- The position of a builder in the inheritance chain only affects code organization, not calling order.
+	- If you want to enforce a specific calling sequence at compile time, that is a different design pattern
+	  called the Step Builder Pattern (also known as the Staged Builder Pattern).
+	  In that pattern, each method returns a different interface/type that only exposes the next allowed method,
+	  making out-of-order calls a compile-time error.
