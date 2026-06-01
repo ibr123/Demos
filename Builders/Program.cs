@@ -1,5 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
-using Builders;
+﻿using Builders;
 using Builders.RecursiveGeneric.Animals.Duck;
 using Builders.RecursiveGeneric.SmartEnum;
 using Builders.Stepwise.Animals.Chicken;
@@ -14,12 +13,15 @@ Duck duck = Duck.Builder.Origin("Germany")
                        .Color(AnimalColors.White)
                        .Build();
 
-Chicken chicken = ChickenBuilderStepwise.ChickenBuilder
-                                        .OfOrigin("Japan")
+Chicken chicken = Chicken.ChickenBuilder.OfOrigin("Japan")
                                         .Color(AnimalColors.Black)
                                         .Weight(5.5)
                                         .Age(3)
                                         .Build();
+
+// This doesn't compile — OfOrigin is the only method available on the entry point:
+//Chicken chicken2 = Chicken.ChickenBuilder.Age(2).Build();
+
 Console.WriteLine();
 
 // ---- Enumeration<Self> demo (CRTP applied to a strongly-typed enum) ----

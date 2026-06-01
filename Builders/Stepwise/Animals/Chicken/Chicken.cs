@@ -1,4 +1,5 @@
-﻿
+﻿using Builders.Stepwise.Animals.Chicken.Interfaces;
+
 namespace Builders.Stepwise.Animals.Chicken;
 
 public class Chicken
@@ -11,5 +12,7 @@ public class Chicken
 
     public AnimalColors Color { get; set; }
 
-    //public static DuckBuilder Builder => new();
+    // Typed as the first step only, so the caller must start with OfOrigin.
+    // A property (=> new) also hands out a fresh builder each time, avoiding shared state.
+    public static IChickenOriginBuilder ChickenBuilder => new ChickenBuilderStepwise();
 }

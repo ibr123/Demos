@@ -1,0 +1,121 @@
+* Stepwise (Staged / Step) Builder Pattern — Summary
+
+	What it is:
+	- A builder where each method returns a DIFFERENT interface that exposes only
+	  the NEXT allowed method, forcing the caller down a fixed sequence.
+	- Chicken chain: OfOrigin -> Color -> Weight -> Age -> Build.
+
+	What problem it solves (vs the Duck recursive-generic builder):
+	- The Duck builder lets you call methods in ANY order and can't require a field.
+	- The Chicken builder ENFORCES order and makes every step mandatory, at COMPILE time.
+
+	How it works:
+	- IChickenOriginBuilder.OfOrigin  returns IChickenkColorBuilder
+	  IChickenkColorBuilder.Color     returns IChickenWeightBuilder
+	  IChickenWeightBuilder.Weight    returns IChickenAgeBuilder
+	  IChickenAgeBuilder.Age          returns IChickenBuilder
+	  IChickenBuilder.Build           returns Chicken
+	- Each interface declares only one method, so IntelliSense shows only one legal next call.
+	- The concrete class returns `this` every time — it's always the same object,
+	  only the static return TYPE narrows step by step.
+
+
+* THE BUG I ASKED ABOUT: why could I call .Age() / .Color() / .Weight() first?
+
+	Original entry point:
+	  public static ChickenBuilderStepwise ChickenBuilder = new();
+	- It was typed as the CONCRETE class ChickenBuilderStepwise.
+	- That class implements IAggrigateChickenBuilder, which exposes ALL methods.
+	- So the caller saw every method and could start anywhere, e.g.
+	  Chicken.ChickenBuilder.Age(2).Build();   // skipped the whole chain.
+
+	The fix — type the entry point as the FIRST step only:
+	  public static IChickenOriginBuilder ChickenBuilder => new ChickenBuilderStepwise();
+	- IChickenOriginBuilder exposes only OfOrigin, so OfOrigin MUST be called first.
+	- Using `=>` (a property returning new) also hands out a FRESH builder each call,
+	  fixing the shared-mutable-state bug of the old shared static field.
+
+	KEY INSIGHT: a stepwise builder's enforcement depends entirely on the TYPE the
+	caller is holding. Never hand the caller the concrete class or the aggregate
+	interface — only ever hand out the first-step interface.
+
+
+* "doesn't returning new ChickenBuilderStepwise() leak everything, since it
+   implements IAggrigateChickenBuilder?"  -- THE OBJECT vs THE REFERENCE
+
+	- At RUNTIME the object really does have all methods (it implements the aggregate).
+	- But C# only lets you CALL methods visible on the COMPILE-TIME type of the
+	  reference you hold.
+	- The reference is typed IChickenOriginBuilder, which declares only OfOrigin,
+	  so that's the only method the compiler can see.
+	- It's a narrow "view" over a fully-capable object, not a restriction on the object.
+
+	The only leaks (both require deliberately wrong code):
+	  ((IAggrigateChickenBuilder)Chicken.ChickenBuilder).Age(2);   // explicit cast
+	  new ChickenBuilderStepwise().Age(2);                         // naming concrete type
+	The second leak is closed by explicit interface implementation (see below).
+
+
+* IS THIS POLYMORPHISM?
+	  public static IChickenOriginBuilder ChickenBuilder => new ChickenBuilderStepwise();
+
+	- Yes — this is SUBTYPE polymorphism (a.k.a. inclusion polymorphism), the kind
+	  most people mean by "polymorphism" in OOP.
+	- Declared type = IChickenOriginBuilder (abstraction); actual object =
+	  ChickenBuilderStepwise (implementation). ChickenBuilderStepwise IS-AN
+	  IChickenOriginBuilder, so it's an implicit upcast.
+	- The polymorphism goes "live" at the call site: calling .OfOrigin() through the
+	  interface reference dispatches to ChickenBuilderStepwise's implementation
+	  (dynamic dispatch).
+	- Quick taxonomy:
+	    Subtype     -> this line (interface reference to concrete object)
+	    Ad-hoc      -> method overloading
+	    Parametric  -> generics (the Duck recursive-generic / Enumeration<Self> builder)
+
+
+* EXPLICIT INTERFACE IMPLEMENTATION — why does this signature implement the interface?
+	  IChickenkColorBuilder IChickenOriginBuilder.OfOrigin(string? origin)
+
+	Read the signature as three parts:
+	    IChickenkColorBuilder            = return type
+	    IChickenOriginBuilder.OfOrigin   = the qualified method name
+	                                       ("the OfOrigin that belongs to IChickenOriginBuilder")
+	    (string? origin)                 = parameter
+
+	- The interface declares:  IChickenkColorBuilder OfOrigin(string? origin);
+	- The implicit form was:   public IChickenkColorBuilder OfOrigin(string? origin) { ... }
+	- The explicit form just prefixes the name with the interface and drops `public`.
+	  Return type and parameters are IDENTICAL.
+
+	How C# links it:
+	  1. Does the class implement IChickenOriginBuilder? (yes, via the aggregate)
+	  2. Does that interface declare OfOrigin(string?) returning IChickenkColorBuilder? (yes)
+	  3. Then this body IS that interface method.  -> contract satisfied.
+
+	Two effects of the prefix:
+	  - No `public` allowed: the member is NOT on the class's own public surface.
+	  - Reachable ONLY through an interface reference:
+	      new ChickenBuilderStepwise().OfOrigin("X");      // won't compile
+	      ((IChickenOriginBuilder)obj).OfOrigin("X");      // works
+	  - This is exactly why we use it here: it stops callers from grabbing the
+	    concrete type and calling methods out of order.
+
+
+* COMPARISON: Stepwise (Chicken) vs Recursive Generic / CRTP (Duck)
+
+	| Aspect            | Duck (CRTP)                     | Chicken (Stepwise)              |
+	|-------------------|---------------------------------|---------------------------------|
+	| Call order        | Any order                       | Fixed, enforced order           |
+	| Skip a property?  | Yes                             | No, every step mandatory        |
+	| Mechanism         | Every method returns Self       | Every method returns next iface |
+	| Best for          | Optional / order-free config    | Required fields in a set order  |
+	| Downside          | Can't require fields            | More boilerplate (1 iface/step) |
+
+	- See Duck/Notes.txt last bullet: it explicitly points to the Step Builder
+	  Pattern as the way to enforce call order — that's what this Chicken folder is.
+
+
+* MINOR NOTES / CLEANUP
+	- Typos kept to match code: IChickenkColorBuilder (extra k),
+	  IAggrigateChickenBuilder ("Aggrigate"). Rename consistently if cleaning up.
+	- Build verified green after the entry-point fix and the explicit-implementation change.

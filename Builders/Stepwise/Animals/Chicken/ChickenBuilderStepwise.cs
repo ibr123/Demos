@@ -8,31 +8,36 @@ public class ChickenBuilderStepwise : IAggrigateChickenBuilder
 
     private Chicken chicken = new();
 
-    public static ChickenBuilderStepwise ChickenBuilder = new();
+    // Explicit interface implementations: these methods are NOT part of the
+    // concrete type's public surface, so they can only be called through the
+    // matching step-interface reference — which you only get by walking the
+    // chain in order. This closes the `new ChickenBuilderStepwise().Age(...)` hole.
 
-    public  IChickenkColorBuilder OfOrigin(string? origin)
+    IChickenkColorBuilder IChickenOriginBuilder.OfOrigin(string? origin)
     {
         chicken.Origin = origin;
         return this;
     }
 
-    public IChickenWeightBuilder Color(AnimalColors color)
+    IChickenWeightBuilder IChickenkColorBuilder.Color(AnimalColors color)
     {
         chicken.Color = color;
         return this;
     }
 
-    public IChickenAgeBuilder Weight(double weight)
+    IChickenAgeBuilder IChickenWeightBuilder.Weight(double weight)
     {
         chicken.Weight = weight;
         return this;
     }
-    public IChickenBuilder Age(int age)
+
+    IChickenBuilder IChickenAgeBuilder.Age(int age)
     {
         chicken.AgeInMonths = age;
         return this;
     }
-    public Chicken Build()
+
+    Chicken IChickenBuilder.Build()
     {
         return chicken;
     }
