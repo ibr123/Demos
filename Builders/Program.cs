@@ -2,6 +2,7 @@
 using Builders;
 using Builders.RecursiveGeneric.Animals.Duck;
 using Builders.RecursiveGeneric.SmartEnum;
+using Builders.Stepwise.Animals.Chicken;
 
 Console.WriteLine("Hello, World!");
 
@@ -10,9 +11,15 @@ Console.WriteLine("Hello, World!");
 Duck duck = Duck.Builder.Origin("Germany")
                        .Wight(2.5)
                        .AgeInMonths(6)
-                       .Color(DuckColors.White)
+                       .Color(AnimalColors.White)
                        .Build();
 
+Chicken chicken = ChickenBuilderStepwise.ChickenBuilder
+                                        .OfOrigin("Japan")
+                                        .Color(AnimalColors.Black)
+                                        .Weight(5.5)
+                                        .Age(3)
+                                        .Build();
 Console.WriteLine();
 
 // ---- Enumeration<Self> demo (CRTP applied to a strongly-typed enum) ----

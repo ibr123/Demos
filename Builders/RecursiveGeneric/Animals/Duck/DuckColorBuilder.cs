@@ -3,7 +3,7 @@
 public class DuckColorBuilder<Self> : DuckWeightBuilder<Self>
     where Self : DuckColorBuilder<Self>
 {
-    public Self Color(DuckColors color)
+    public Self Color(AnimalColors color)
     {
         duck.Color = color;
         ///just for clarifications

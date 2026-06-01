@@ -1,6 +1,7 @@
-﻿namespace Builders.RecursiveGeneric.Animals.Duck;
+﻿
+namespace Builders.Stepwise.Animals.Chicken;
 
-public class Duck
+public class Chicken
 {
     public int AgeInMonths { get; set; }
 
@@ -10,5 +11,5 @@ public class Duck
 
     public AnimalColors Color { get; set; }
 
-    public static DuckBuilder Builder => new();
+    //public static DuckBuilder Builder => new();
 }

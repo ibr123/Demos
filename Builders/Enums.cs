@@ -1,6 +1,6 @@
 ﻿namespace Builders;
 
-public enum DuckColors
+public enum AnimalColors
 {
     White,
     Black,
