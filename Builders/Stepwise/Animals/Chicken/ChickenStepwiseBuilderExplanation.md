@@ -238,6 +238,63 @@ IChickenOriginBuilder view = new ChickenBuilderStepwise();
 view.OfOrigin("X");         // ✅ only reachable via the interface
 ```
 
+### What "hidden from the class, only exists on the interface" actually means
+
+Think of a class and its interfaces as having **separate member lists**:
+
+```
+ChickenBuilderStepwise (class surface)     IChickenOriginBuilder (interface surface)
+─────────────────────────────────────      ────────────────────────────────────────
+chicken  (private field)                   OfOrigin(string?)
+[nothing else]
+```
+
+With **implicit** (normal) implementation the method is added to *both* lists:
+
+```csharp
+// implicit
+public IChickenkColorBuilder OfOrigin(string? origin) { ... }
+```
+
+```
+ChickenBuilderStepwise (class surface)     IChickenOriginBuilder (interface surface)
+─────────────────────────────────────      ────────────────────────────────────────
+OfOrigin(string?)   ◄── same method ──►   OfOrigin(string?)
+```
+
+The method lives on the class AND satisfies the interface. You can call it
+either way.
+
+With **explicit** implementation the method is added to the *interface list
+only*:
+
+```csharp
+// explicit
+IChickenkColorBuilder IChickenOriginBuilder.OfOrigin(string? origin) { ... }
+```
+
+```
+ChickenBuilderStepwise (class surface)     IChickenOriginBuilder (interface surface)
+─────────────────────────────────────      ────────────────────────────────────────
+[nothing — OfOrigin is NOT here]           OfOrigin(string?)   ◄── lives here only
+```
+
+The compiler resolves method calls using the **compile-time type of the
+reference**, not the runtime type of the object. So:
+
+- A `ChickenBuilderStepwise` reference → compiler checks the class surface →
+  no `OfOrigin` → **compile error**.
+- An `IChickenOriginBuilder` reference → compiler checks the interface surface
+  → `OfOrigin` is there → **allowed**.
+
+The object in memory is the same either way — it is always a fully capable
+`ChickenBuilderStepwise`. The difference is purely which *lens* the compiler
+uses to decide what you are allowed to call.
+
+An analogy: imagine a key card that only works on one specific door. The
+door (interface) grants access; the building (class) does not. You need the
+right card (reference type) to open that door.
+
 This closes the loophole where someone could grab the concrete type directly and
 call methods out of order. Combined with the entry point handing out only
 `IChickenOriginBuilder`, the ordered chain becomes the *only* way to use the

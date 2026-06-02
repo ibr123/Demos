@@ -101,6 +101,58 @@
 	    concrete type and calling methods out of order.
 
 
+* "THE METHOD IS HIDDEN FROM THE CLASS — IT ONLY EXISTS ON THE INTERFACE" — what does that mean?
+
+	Think of the class and its interfaces as having SEPARATE member lists:
+
+	  IMPLICIT (normal) implementation:
+	    public IChickenkColorBuilder OfOrigin(string? origin) { ... }
+
+	    ChickenBuilderStepwise (class surface)  |  IChickenOriginBuilder (interface surface)
+	    ----------------------------------------|------------------------------------------
+	    OfOrigin(string?)  <── same method ──>  |  OfOrigin(string?)
+
+	    The method is added to BOTH lists. It lives on the class AND satisfies the
+	    interface. You can call it through either a class reference or an interface reference.
+
+	  EXPLICIT implementation:
+	    IChickenkColorBuilder IChickenOriginBuilder.OfOrigin(string? origin) { ... }
+
+	    ChickenBuilderStepwise (class surface)  |  IChickenOriginBuilder (interface surface)
+	    ----------------------------------------|------------------------------------------
+	    [nothing — OfOrigin is NOT here]        |  OfOrigin(string?)  <── lives here only
+
+	    The method is added to the INTERFACE list only. The class surface has no OfOrigin.
+
+	How the compiler enforces this:
+	  - The compiler resolves method calls using the COMPILE-TIME TYPE of the reference,
+	    not the runtime type of the object.
+	  - ChickenBuilderStepwise reference → compiler checks class surface → no OfOrigin
+	    → compile error.
+	  - IChickenOriginBuilder reference → compiler checks interface surface → OfOrigin
+	    is there → allowed.
+
+	  The object in memory is ALWAYS the same fully-capable ChickenBuilderStepwise.
+	  The difference is only which lens the compiler uses to decide what you can call.
+
+	Analogy:
+	  Think of a key card that only works on one specific door.
+	  The door (interface) grants access; the building (class) does not.
+	  You need the right card (reference type) to open that door.
+
+	Implicit vs Explicit side by side:
+	  // implicit — OfOrigin is on the class, usable without the interface
+	  var a = new ChickenBuilderStepwise();
+	  a.OfOrigin("Japan");                          // ✅ compiles
+
+	  // explicit — OfOrigin is NOT on the class
+	  var b = new ChickenBuilderStepwise();
+	  b.OfOrigin("Japan");                          // ❌ compile error
+
+	  IChickenOriginBuilder c = new ChickenBuilderStepwise();
+	  c.OfOrigin("Japan");                          // ✅ only reachable via the interface
+
+
 * COMPARISON: Stepwise (Chicken) vs Recursive Generic / CRTP (Duck)
 
 	| Aspect            | Duck (CRTP)                     | Chicken (Stepwise)              |
