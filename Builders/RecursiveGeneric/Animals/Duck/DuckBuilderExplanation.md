@@ -131,6 +131,39 @@ Three things to notice:
    point of the pattern. The return type lets you keep chaining as if you
    never went up the inheritance hierarchy. We'll see why in section 5.
 
+#### What does "valid subclass" mean in the constraint?
+
+The constraint `where Self : DuckAgeBuilder<Self>` is a **rule the compiler
+enforces** about which types are allowed to be substituted for `Self`. A type
+is **valid** only if it satisfies that rule — i.e. a type `X` is valid only if
+`X : DuckAgeBuilder<X>` is true (read: `X` **IS-A** `DuckAgeBuilder<X>`).
+
+```csharp
+// ✅ VALID — DuckBuilder inherits from the chain that closes on itself.
+//    Is DuckBuilder a DuckAgeBuilder<DuckBuilder>? Yes → allowed.
+public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder> { }
+
+// ❌ INVALID — these are the "arbitrary types".
+DuckAgeBuilder<int>          // Is int a DuckAgeBuilder<int>?        No → compile error
+DuckAgeBuilder<string>       // Is string a DuckAgeBuilder<string>? No → compile error
+DuckAgeBuilder<HttpClient>   // Unrelated type                      → compile error
+```
+
+**Why the rule exists:** every setter ends with `return (Self)this;`. At
+runtime `this` is always a `DuckBuilder`-family object. Without the constraint,
+`Self` could be `int`, `string`, or `HttpClient`, and `(int)this` /
+`(string)this` would be meaningless — a guaranteed runtime failure. The
+constraint bans those types *up front*, so `Self` can only ever be a type that
+`this` actually **is**, making the cast always safe.
+
+> **In one line:** "valid" = a type that lives inside this builder's own
+> inheritance family (it satisfies `Self : DuckXxxBuilder<Self>`), as opposed
+> to an "arbitrary type" like `int` or `string` that has nothing to do with the
+> builder and would make `(Self)this` nonsense. The constraint is what turns
+> `Self` from "any type at all" (like a plain `T`) into "specifically a type
+> from my own hierarchy" — which is the entire reason this trick is type-safe
+> rather than a pile of unchecked casts.
+
 The other three (`DuckOriginBuilder`, `DuckWeightBuilder`, `DuckColorBuilder`)
 follow the exact same recipe but each one stacks on top of the previous one:
 

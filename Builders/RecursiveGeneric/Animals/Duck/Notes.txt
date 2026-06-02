@@ -45,6 +45,23 @@
 	- Self must be a type that itself inherits from DuckBuildAggregator<Self>.
 	- Forces Self to always be a subclass of the class using it — not any random type.
 
+	2b. What does "VALID subclass" mean here? (i.e. "only valid types can fill in Self")
+	- "Valid" = a type X that passes the rule  X : DuckBuildAggregator<X>  (X IS-A DuckBuildAggregator<X>).
+	- VALID example:
+	    public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder> { }
+	    plug in Self = DuckBuilder → is DuckBuilder a DuckBuildAggregator<DuckBuilder>? YES → allowed.
+	- INVALID examples (these are the "arbitrary types"):
+	    DuckBuildAggregator<int>         // is int a DuckBuildAggregator<int>?    NO → compile error
+	    DuckBuildAggregator<string>      // is string a DuckBuildAggregator<string>? NO → compile error
+	    DuckBuildAggregator<HttpClient>  // unrelated type → compile error
+	- WHY the constraint matters: every setter does `return (Self)this;`. `this` is always a
+	  DuckBuilder-family object. Without the constraint Self could be int/string/HttpClient, and
+	  (int)this / (string)this would be meaningless garbage. The constraint guarantees Self can
+	  only ever be a type `this` actually IS, so the cast is always safe.
+	- ONE-LINE: "valid" = a type inside this builder's own inheritance family (satisfies
+	  Self : DuckBuildAggregator<Self>), as opposed to an "arbitrary type" like int or string
+	  that has nothing to do with the builder and would make (Self)this nonsense.
+
 	3. DuckBuilder is the One That Fills It In
 	`public sealed class DuckBuilder : DuckBuildAggregator<DuckBuilder>`
 	- Self = DuckBuilder gets substituted into the entire chain at compile time.
