@@ -12,7 +12,7 @@ public class Chicken
 
     public AnimalColors Color { get; set; }
 
-    // Typed as the first step only, so the caller must start with OfOrigin.
+    // Typed as the first step only, so the caller must start with Origin.
     // A property (=> new) also hands out a fresh builder each time, avoiding shared state.
-    public static IChickenOriginBuilder ChickenBuilder => new ChickenBuilderStepwise();
+    public static IChickenOriginBuilder ChickenBuilder => new ChickenStepwiseBuilder();
 }

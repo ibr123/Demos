@@ -13,7 +13,7 @@ Duck duck = Duck.Builder.Origin("Germany")
                        .Color(AnimalColors.White)
                        .Build();
 
-Chicken chicken = Chicken.ChickenBuilder.OfOrigin("Japan")
+Chicken chicken = Chicken.ChickenBuilder.Origin("Japan")
                                         .Color(AnimalColors.Black)
                                         .Weight(5.5)
                                         .Age(3)

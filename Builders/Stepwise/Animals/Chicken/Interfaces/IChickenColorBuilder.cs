@@ -1,7 +1,7 @@
 ﻿
 namespace Builders.Stepwise.Animals.Chicken.Interfaces;
 
-public interface IChickenkColorBuilder
+public interface IChickenColorBuilder
 {
     public IChickenWeightBuilder Color(AnimalColors color);
 }

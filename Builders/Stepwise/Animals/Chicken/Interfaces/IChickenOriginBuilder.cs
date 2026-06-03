@@ -2,5 +2,5 @@
 
 public interface IChickenOriginBuilder
 {
-    public IChickenkColorBuilder OfOrigin(string? origin);
+    public IChickenColorBuilder Origin(string? origin);
 }

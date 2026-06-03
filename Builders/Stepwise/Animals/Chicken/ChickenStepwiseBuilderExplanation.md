@@ -2,7 +2,7 @@
 
 This document walks through every file in the `Chicken` folder, explains what
 each type does, and shows how the design **forces the caller to call the builder
-methods in a fixed order** — starting with `OfOrigin` and ending with `Build`.
+methods in a fixed order** — starting with `Origin` and ending with `Build`.
 
 The goal is for **anyone** — even a junior developer who has never seen this
 pattern — to read this file top to bottom and understand the design.
@@ -20,7 +20,7 @@ We want to construct a `Chicken` using fluent chaining like this:
 
 ```csharp
 Chicken chicken = Chicken.ChickenBuilder
-                         .OfOrigin("Japan")
+                         .Origin("Japan")
                          .Color(AnimalColors.Black)
                          .Weight(5.5)
                          .Age(3)
@@ -29,7 +29,7 @@ Chicken chicken = Chicken.ChickenBuilder
 
 The driving requirement is the exact opposite of the Duck builder:
 
-1. **Order is mandatory.** The caller MUST call `OfOrigin` first, then `Color`,
+1. **Order is mandatory.** The caller MUST call `Origin` first, then `Color`,
    then `Weight`, then `Age`, then `Build`. Any other order is a
    **compile-time error**.
 2. **You cannot skip a step.** You cannot call `.Age(2)` straight away, and you
@@ -49,10 +49,10 @@ method is always available. In a stepwise builder **each method returns a
 different interface that exposes only the *next* allowed method**.
 
 ```
-IChickenOriginBuilder   → sees only OfOrigin
-   │ OfOrigin(...) returns
+IChickenOriginBuilder   → sees only Origin
+   │ Origin(...) returns
    ▼
-IChickenkColorBuilder   → sees only Color
+IChickenColorBuilder   → sees only Color
    │ Color(...) returns
    ▼
 IChickenWeightBuilder   → sees only Weight
@@ -78,17 +78,13 @@ exist as far as the compiler is concerned.
 | File | Type | Role |
 |------|------|------|
 | `Chicken.cs` | data class | The "product" + the static entry point |
-| `Interfaces/IChickenOriginBuilder.cs` | step 1 interface | Exposes `OfOrigin` → returns step 2 |
-| `Interfaces/IChickenkColorBuilder.cs` | step 2 interface | Exposes `Color` → returns step 3 |
+| `Interfaces/IChickenOriginBuilder.cs` | step 1 interface | Exposes `Origin` → returns step 2 |
+| `Interfaces/IChickenColorBuilder.cs` | step 2 interface | Exposes `Color` → returns step 3 |
 | `Interfaces/IChickenWeightBuilder.cs` | step 3 interface | Exposes `Weight` → returns step 4 |
 | `Interfaces/IChickenAgeBuilder.cs` | step 4 interface | Exposes `Age` → returns final step |
 | `Interfaces/IChickenBuilder.cs` | final interface | Exposes `Build` → returns `Chicken` |
-| `Interfaces/IAggrigateChickenBuilder.cs` | aggregate interface | Inherits all five so one class can implement them |
-| `ChickenBuilderStepwise.cs` | concrete builder | Implements every step (explicitly) |
-
-> Note on naming: `IChickenkColorBuilder` and `IAggrigateChickenBuilder` contain
-> typos (an extra `k`, and "Aggrigate" instead of "Aggregate"). They are kept
-> here as-is to match the code; rename consistently if you clean them up.
+| `Interfaces/IAggregateChickenBuilder.cs` | aggregate interface | Inherits all five so one class can implement them |
+| `ChickenStepwiseBuilder.cs` | concrete builder | Implements every step (explicitly) |
 
 ---
 
@@ -100,10 +96,10 @@ the next interface in the chain**:
 ```csharp
 public interface IChickenOriginBuilder
 {
-    IChickenkColorBuilder OfOrigin(string? origin);   // step 1 → step 2
+    IChickenColorBuilder Origin(string? origin);   // step 1 → step 2
 }
 
-public interface IChickenkColorBuilder
+public interface IChickenColorBuilder
 {
     IChickenWeightBuilder Color(AnimalColors color);  // step 2 → step 3
 }
@@ -132,10 +128,10 @@ is doing the work.
 ## 5. The Aggregate Interface
 
 ```csharp
-public interface IAggrigateChickenBuilder : IChickenBuilder,
+public interface IAggregateChickenBuilder : IChickenBuilder,
                                             IChickenAgeBuilder,
                                             IChickenWeightBuilder,
-                                            IChickenkColorBuilder,
+                                            IChickenColorBuilder,
                                             IChickenOriginBuilder
 {
 }
@@ -151,17 +147,17 @@ simultaneously and the ordering would be lost.
 ## 6. The Concrete Builder
 
 ```csharp
-public class ChickenBuilderStepwise : IAggrigateChickenBuilder
+public class ChickenStepwiseBuilder : IAggregateChickenBuilder
 {
     private Chicken chicken = new();
 
-    IChickenkColorBuilder IChickenOriginBuilder.OfOrigin(string? origin)
+    IChickenColorBuilder IChickenOriginBuilder.Origin(string? origin)
     {
         chicken.Origin = origin;
         return this;          // same object, but typed as the next step
     }
 
-    IChickenWeightBuilder IChickenkColorBuilder.Color(AnimalColors color)
+    IChickenWeightBuilder IChickenColorBuilder.Color(AnimalColors color)
     {
         chicken.Color = color;
         return this;
@@ -202,21 +198,21 @@ Two things to notice:
 
 ```csharp
 // Chicken.cs
-public static IChickenOriginBuilder ChickenBuilder => new ChickenBuilderStepwise();
+public static IChickenOriginBuilder ChickenBuilder => new ChickenStepwiseBuilder();
 ```
 
 This is the linchpin. Two deliberate choices:
 
 - **The return type is `IChickenOriginBuilder`** — the *first step only*. Even
-  though the object is a fully-capable `ChickenBuilderStepwise`, the caller is
+  though the object is a fully-capable `ChickenStepwiseBuilder`, the caller is
   handed the narrowest possible view, so the only method they can call is
-  `OfOrigin`. This is **subtype polymorphism**: an interface reference pointing
+  `Origin`. This is **subtype polymorphism**: an interface reference pointing
   at a concrete implementation.
 - **It is a `=>` property (returns `new` each time)**, not a shared `static`
   field. Each call gets a fresh builder, so two independent `Build()` chains
   never share the same mutable `Chicken`.
 
-> Earlier version had `public static ChickenBuilderStepwise ChickenBuilder = new();`
+> Earlier version had `public static ChickenStepwiseBuilder ChickenBuilder = new();`
 > — typed as the **concrete class**, which exposed every method and let callers
 > start anywhere (e.g. `Chicken.ChickenBuilder.Age(2)`). That was the bug this
 > design fixes.
@@ -225,17 +221,17 @@ This is the linchpin. Two deliberate choices:
 
 ## 8. Why Explicit Interface Implementation?
 
-Explicit implementation (`IChickenOriginBuilder.OfOrigin` instead of
-`public OfOrigin`) removes the methods from the concrete type's public surface.
+Explicit implementation (`IChickenOriginBuilder.Origin` instead of
+`public Origin`) removes the methods from the concrete type's public surface.
 They become reachable **only through the matching interface reference**:
 
 ```csharp
-var raw = new ChickenBuilderStepwise();
-raw.OfOrigin("X");          // ❌ won't compile — not a public member of the class
+var raw = new ChickenStepwiseBuilder();
+raw.Origin("X");          // ❌ won't compile — not a public member of the class
 raw.Age(2);                 // ❌ won't compile
 
-IChickenOriginBuilder view = new ChickenBuilderStepwise();
-view.OfOrigin("X");         // ✅ only reachable via the interface
+IChickenOriginBuilder view = new ChickenStepwiseBuilder();
+view.Origin("X");         // ✅ only reachable via the interface
 ```
 
 ### What "hidden from the class, only exists on the interface" actually means
@@ -243,9 +239,9 @@ view.OfOrigin("X");         // ✅ only reachable via the interface
 Think of a class and its interfaces as having **separate member lists**:
 
 ```
-ChickenBuilderStepwise (class surface)     IChickenOriginBuilder (interface surface)
+ChickenStepwiseBuilder (class surface)     IChickenOriginBuilder (interface surface)
 ─────────────────────────────────────      ────────────────────────────────────────
-chicken  (private field)                   OfOrigin(string?)
+chicken  (private field)                   Origin(string?)
 [nothing else]
 ```
 
@@ -253,13 +249,13 @@ With **implicit** (normal) implementation the method is added to *both* lists:
 
 ```csharp
 // implicit
-public IChickenkColorBuilder OfOrigin(string? origin) { ... }
+public IChickenColorBuilder Origin(string? origin) { ... }
 ```
 
 ```
-ChickenBuilderStepwise (class surface)     IChickenOriginBuilder (interface surface)
+ChickenStepwiseBuilder (class surface)     IChickenOriginBuilder (interface surface)
 ─────────────────────────────────────      ────────────────────────────────────────
-OfOrigin(string?)   ◄── same method ──►   OfOrigin(string?)
+Origin(string?)   ◄── same method ──►   Origin(string?)
 ```
 
 The method lives on the class AND satisfies the interface. You can call it
@@ -270,25 +266,25 @@ only*:
 
 ```csharp
 // explicit
-IChickenkColorBuilder IChickenOriginBuilder.OfOrigin(string? origin) { ... }
+IChickenColorBuilder IChickenOriginBuilder.Origin(string? origin) { ... }
 ```
 
 ```
-ChickenBuilderStepwise (class surface)     IChickenOriginBuilder (interface surface)
+ChickenStepwiseBuilder (class surface)     IChickenOriginBuilder (interface surface)
 ─────────────────────────────────────      ────────────────────────────────────────
-[nothing — OfOrigin is NOT here]           OfOrigin(string?)   ◄── lives here only
+[nothing — Origin is NOT here]           Origin(string?)   ◄── lives here only
 ```
 
 The compiler resolves method calls using the **compile-time type of the
 reference**, not the runtime type of the object. So:
 
-- A `ChickenBuilderStepwise` reference → compiler checks the class surface →
-  no `OfOrigin` → **compile error**.
+- A `ChickenStepwiseBuilder` reference → compiler checks the class surface →
+  no `Origin` → **compile error**.
 - An `IChickenOriginBuilder` reference → compiler checks the interface surface
-  → `OfOrigin` is there → **allowed**.
+  → `Origin` is there → **allowed**.
 
 The object in memory is the same either way — it is always a fully capable
-`ChickenBuilderStepwise`. The difference is purely which *lens* the compiler
+`ChickenStepwiseBuilder`. The difference is purely which *lens* the compiler
 uses to decide what you are allowed to call.
 
 An analogy: imagine a key card that only works on one specific door. The
@@ -301,7 +297,7 @@ call methods out of order. Combined with the entry point handing out only
 builder.
 
 The one remaining theoretical bypass is a deliberate cast to
-`IAggrigateChickenBuilder` — but that requires writing obviously-wrong code, so
+`IAggregateChickenBuilder` — but that requires writing obviously-wrong code, so
 it's considered "you're holding it wrong" rather than an open door.
 
 ---
@@ -324,10 +320,6 @@ fields are provided, in a certain order, at compile time.
 
 ## 10. Continuation / TODO
 
-- Consider renaming the typo'd interfaces: `IChickenkColorBuilder` →
-  `IChickenColorBuilder`, `IAggrigateChickenBuilder` → `IAggregateChickenBuilder`.
-- Optionally remove the leftover commented-out `Builder` line that was copied
-  from the Duck template.
 - The pattern could be extended with optional steps (an interface that returns
   *itself* for repeatable calls, or branches that allow skipping a step) if some
   fields should become optional.
