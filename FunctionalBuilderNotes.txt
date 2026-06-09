@@ -1,0 +1,76 @@
+* Functional Builder Pattern — Summary
+  (Dmitri Nesteruk, "Design Patterns in C# and .NET", Udemy)
+
+	What it is:
+	- A builder whose state is NOT a half-built object, but a LIST OF FUNCTIONS
+	  (List<Action<Person>>) — a recipe of deferred mutations.
+	- Each step (.Called, .WorksAsA) only RECORDS an action; nothing is built yet.
+	- Build() creates a fresh Person and replays every recorded action onto it.
+
+	The chain:
+	  .Called("Dmitri")        -> Actions += (p => p.Name = "Dmitri")
+	  .WorksAsA("Programmer")  -> Actions += (p => p.Position = "Programmer")
+	  .Build()                 -> p = new Person(); run all actions; return p
+
+
+* THE WHOLE POINT: Open/Closed Principle
+
+	- PersonBuilder is `sealed` and only defines `Called`.
+	- `WorksAsA` is added as an EXTENSION METHOD in a separate static class,
+	  adding a NEW build step WITHOUT modifying PersonBuilder.
+	- "Open for extension, closed for modification."
+	- Classic builder: every new step = edit the builder class.
+	  Functional builder: new step = just write an extension method.
+
+
+* HOW IT WORKS (mechanics)
+
+	- Actions is `public readonly List<Action<Person>>`.
+	    - readonly  = can't REASSIGN the list reference.
+	    - public    = extension methods can ADD to it (needed for extensibility).
+	    - contents are still mutable -> the trade-off: less encapsulation.
+	- Called(name): Actions.Add(p => { p.Name = name; }); return this;
+	    - the lambda CAPTURES `name` in a closure, remembered until Build().
+	- Build(): var p = new Person(); Actions.ForEach(a => a(p)); return p;
+	    - all deferred work runs HERE, in insertion order.
+	- `return this` / `return builder` on each step enables fluent chaining.
+
+
+* "FUNCTIONAL" — why the name?
+
+	- Builder state = a list of functions, not object state.
+	- Building = function application (apply each Action<Person> to the object).
+	- That FP flavor is where "functional builder" comes from.
+
+
+* CLASSIC vs FUNCTIONAL (quick table)
+
+	| Aspect            | Classic Builder        | Functional Builder         |
+	|-------------------|------------------------|----------------------------|
+	| Builder state     | half-built object      | List<Action<T>>            |
+	| Mutation timing   | immediately, per call  | all at once, in Build()    |
+	| Add a new step    | edit the builder class | write an extension method  |
+	| Encapsulation     | strong (state hidden)  | weaker (Actions is public) |
+	| Best for          | fixed set of steps     | steps third parties extend |
+
+
+* GOTCHAS / NOTES
+
+	- Deferred execution: actions run in the order added; if two set the same
+	  field, the LAST one added wins.
+	- Closures capture the value passed at call time and replay it unchanged.
+	- Repetition smell: every step is `Actions.Add(...); return ...;`.
+	  -> Next lecture: GENERIC functional builder (recursive generic / CRTP)
+	     with a single Do(...) helper to remove the boilerplate.
+	- The course Main() never prints. Add:
+	     Console.WriteLine($"{person.Name} works as a {person.Position}");
+	     // Dmitri works as a Programmer
+
+
+* RELATION TO OTHER BUILDER VARIANTS
+
+	- Fluent builder   -> returns `this` for chaining (this file does that too).
+	- Stepwise builder -> enforces call ORDER via interfaces (e.g. the Chicken example).
+	- Faceted builder  -> multiple sub-builders for different facets.
+	- Functional builder (THIS) -> optimizes for EXTENSION without modification.
+	  It enforces nothing about order; its strength is open/closed extensibility.
