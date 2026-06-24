@@ -1,0 +1,24 @@
+﻿namespace Builders.Functional.Shapes;
+
+public class ShapeBuilder
+{
+    public readonly List<Action<Shape>> ShapeBuildingActions = [];
+
+    public ShapeBuilder DefineShape(string shapeType)
+    {
+        ShapeBuildingActions.Add(shapeTypeBuilder =>
+        {
+            shapeTypeBuilder.ShapeType = shapeType;
+        });
+
+        return this;
+    }
+
+    public Shape Build()
+    {
+        Shape shape = new();
+
+        ShapeBuildingActions.ForEach(buildingAction => buildingAction(shape));
+        return shape;
+    }
+}
