@@ -22,6 +22,19 @@
 	- Classic builder: every new step = edit the builder class.
 	  Functional builder: new step = just write an extension method.
 
+	- THE TEST (proves OCP is the design DRIVER, not just a side benefit):
+	    "If I delete the OCP benefit, does the functional design still make sense?"
+	    - No. If you didn't care about third parties adding steps without
+	      touching your class, you'd use a CLASSIC builder — simpler, better
+	      encapsulated, and the List<Action<T>> machinery buys you nothing.
+	    - The list-of-functions approach only EARNS its keep because it lets
+	      extension methods plug in new steps.
+	    - So every structural choice (public Actions, sealed builder, deferred
+	      Build()) is bent toward making OCP extensibility possible.
+	- CAVEAT: OCP is the reason behind THIS VARIANT, not the Builder pattern
+	  as a whole. Builders in general exist to construct complex objects
+	  step-by-step; only the functional variant is driven by OCP.
+
 
 * HOW IT WORKS (mechanics)
 
@@ -34,6 +47,34 @@
 	- Build(): var p = new Person(); Actions.ForEach(a => a(p)); return p;
 	    - all deferred work runs HERE, in insertion order.
 	- `return this` / `return builder` on each step enables fluent chaining.
+
+
+* SEQUENCE< (full trace: from `new Person()` to invocation)
+
+	Step 0 — Build() creates the object:
+	    var p = new Person();
+	    -> p.Name = null, p.Position = null   (empty shell, nothing applied yet)
+
+	Step 1 — replay the recorded actions (Actions.ForEach(a => a(p))):
+	    Actions[0]  is   p => { p.Name = name; }          // from .Called("Dmitri")
+	    Actions[1]  is   p => { p.Position = position; }   // from .WorksAsA("Programmer")
+
+	Step 2 — first invocation:  a(p)  where a == Actions[0]
+	    runs  p.Name = "Dmitri";        // closure replays captured name
+	    -> p.Name = "Dmitri", p.Position = null
+
+	Step 3 — second invocation: a(p)  where a == Actions[1]
+	    runs  p.Position = "Programmer"; // closure replays captured position
+	    -> p.Name = "Dmitri", p.Position = "Programmer"
+
+	Step 4 — Build() returns the now-complete p:
+	    return p;   // => Person { Name = "Dmitri", Position = "Programmer" }
+
+	Key timing note:
+	    - Step 1's lambdas were RECORDED earlier, back during the chain
+	      (.Called / .WorksAsA), but they only RUN now, in Build(), in order.
+	    - `a(p)` = invoke the stored Action<Person> with this exact p.
+	    - Same field set twice? Last invocation in the sequence wins.
 
 
 * "FUNCTIONAL" — why the name?
