@@ -19,6 +19,7 @@ public class ShapeBuilder
         Shape shape = new();
 
         ShapeBuildingActions.ForEach(buildingAction => buildingAction(shape));
+        ShapeBuildingActions.Clear();   // reset the recipe so the next product starts clean
         return shape;
     }
 }

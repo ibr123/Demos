@@ -12,7 +12,7 @@ public static class CirclePlugin
         return shapeBuilder;
     }
 
-    public static ShapeBuilder CalculateCirculePerimeter(this ShapeBuilder shapeBuilder, float radius)
+    public static ShapeBuilder CalculateCirclePerimeter(this ShapeBuilder shapeBuilder, float radius)
     {
         shapeBuilder.ShapeBuildingActions.Add(circle =>
         {

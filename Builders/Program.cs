@@ -11,7 +11,7 @@ Console.WriteLine("Hello, World!");
 // Implementation of functional builder
 ShapeBuilder shapeBuilder = new();
 
-Shape circle = shapeBuilder.DefineShape("Circle").CalculateCircleArea(5).CalculateCirculePerimeter(5).Build();
+Shape circle = shapeBuilder.DefineShape("Circle").CalculateCircleArea(5).CalculateCirclePerimeter(5).Build();
 
 Shape triangle = shapeBuilder.DefineShape("Triangle").CalculateTriangleArea(6, 3).CalculateTrianglePerimeter(4, 5, 7).Build();
 

@@ -115,3 +115,103 @@
 	- Faceted builder  -> multiple sub-builders for different facets.
 	- Functional builder (THIS) -> optimizes for EXTENSION without modification.
 	  It enforces nothing about order; its strength is open/closed extensibility.
+
+
+* PROBLEM 1 — REUSED BUILDER ACCUMULATES ACTIONS (the Shape example)
+
+	Symptom:
+	- One builder instance is reused to build two products:
+	    ShapeBuilder b = new();
+	    Shape circle   = b.DefineShape("Circle")...Build();
+	    Shape triangle = b.DefineShape("Triangle")...Build();   // SAME b
+	- Build() NEVER clears ShapeBuildingActions, so the list only grows.
+	  The triangle's Build() replays ALL SIX actions (circle's 3 + triangle's 3)
+	  on its fresh Shape.
+
+	Why it still looks correct:
+	- Last-write-wins: the triangle's 3 actions run LAST and overwrite all three
+	  fields the circle had set. Midway through Build() the object is briefly a
+	  COMPLETE circle, then the triangle stamps over it.
+
+	Where it breaks (silent bug):
+	- If the triangle set Area but NOT Perimeter, the circle's leftover Perimeter
+	  is never overwritten -> "triangle" silently reports the circle's perimeter.
+	- Also wasted work: re-runs circle's actions every time; cost grows per product
+	  (3 actions, then 6, then 9, ...).
+
+	Root cause:
+	- Builder state is a recipe that ACCUMULATES; Build() only READS it, never resets.
+
+	Solutions (preferred -> fallback):
+	  (a) BEST — a fresh builder per product. Eliminates shared state instead of
+	      managing it. Match the Duck/Chicken style with a static entry point:
+	          public static ShapeBuilder Builder => new();   // fresh recipe each time
+	          Shape circle = Shape.Builder.DefineShape("Circle")...Build();
+	  (b) FALLBACK — reset inside Build() when you MUST reuse one instance:
+	          public Shape Build() {
+	              Shape s = new();
+	              ShapeBuildingActions.ForEach(a => a(s));
+	              ShapeBuildingActions.Clear();   // next product starts clean
+	              return s;
+	          }
+	      Downside: Build() now has a HIDDEN side effect (mutates the builder) —
+	      surprising for a method that "just builds".
+
+	Deep-understanding note:
+	- Both fix the symptom. Fresh-instance ELIMINATES shared state (nothing to leak);
+	  Clear() carefully MANAGES shared state (leak, then wipe). Removing a hazard
+	  beats remembering to defuse it -> default to fresh.
+
+
+* PROBLEM 2 — INJECTED BUILDER STAYS THE SAME INSTANCE (even when Transient)
+
+	Symptom:
+	- ShapeBuilder is injected and used to build two shapes in one class:
+	    class ShapeService {
+	        readonly ShapeBuilder _b;
+	        ShapeService(ShapeBuilder b) => _b = b;   // resolved ONCE, stored in a field
+	        ... _b.DefineShape("Circle")...Build();   // both builds share _b
+	        ... _b.DefineShape("Triangle")...Build(); // -> Problem 1 is back
+	    }
+	- Registering AddTransient<ShapeBuilder>() does NOT help.
+
+	Why Transient doesn't save you:
+	- DI lifetime = how often the CONTAINER CREATES the instance, NOT how often you
+	  reuse it.
+	- Transient = "new per RESOLUTION". A constructor parameter is resolved exactly
+	  ONCE (at construction), so you get one builder in a field and reuse it.
+	- KEY: to get "new per USE" you must RESOLVE per use, not inject per construction.
+	  No object lifetime (Transient/Scoped/Singleton) can give per-call freshness
+	  through a plain injected field.
+
+	The trap:
+	- Picking Transient and thinking "new instance, so I'm safe" SHIPS the bug —
+	  the safety you imagined (per-use) isn't the safety the lifetime provides
+	  (per-resolution). The fix is not a different lifetime; it's changing WHAT you
+	  inject so resolution happens per use.
+
+	Solutions (preferred -> fallback):
+	  (a) BEST — inject a FACTORY, not the builder. Every call resolves a fresh one:
+	          class ShapeService {
+	              readonly Func<ShapeBuilder> _make;
+	              ShapeService(Func<ShapeBuilder> make) => _make = make;
+	              ... _make().DefineShape("Circle")...Build();
+	              ... _make().DefineShape("Triangle")...Build();
+	          }
+	      Registration (MS.Extensions.DI doesn't auto-make Func<T>):
+	          services.AddTransient<ShapeBuilder>();
+	          services.AddTransient<Func<ShapeBuilder>>(
+	              sp => () => sp.GetRequiredService<ShapeBuilder>());
+	      (Autofac and others provide Func<T> for free.)
+	  (b) FALLBACK — Clear() in Build() (Problem 1's fallback) so reuse is safe
+	      regardless of how the instance is shared.
+
+	Design insight:
+	- A builder is a SHORT-LIVED, SINGLE-USE, STATEFUL object. That is at odds with
+	  being a long-lived injected dependency. So don't inject the builder directly
+	  (that's the smell that created the question) — inject the ability to MAKE
+	  builders (Func<ShapeBuilder> or a small IShapeBuilderFactory). The factory is
+	  what's safe to be long-lived; each builder it hands out is fresh and single-use.
+	- A static `Shape.Builder => new()` entry point also fixes Problem 1, but a
+	  static new() can't be mocked/substituted, so it fights testability in a DI
+	  codebase -> prefer the factory there.

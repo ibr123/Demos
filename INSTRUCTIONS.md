@@ -7,6 +7,9 @@
 
 ## How to use this file
 
+- **This file is NOT tied to any specific project/example in the repo.** It holds
+  *behavioral* instructions for how Claude should work across this whole repo —
+  not notes about a particular demo, pattern, or piece of code.
 - Put **persistent instructions** here — things that should hold no matter which
   machine I open this repo from.
 - Anything written here is committed to git, so it's available everywhere the repo is.
