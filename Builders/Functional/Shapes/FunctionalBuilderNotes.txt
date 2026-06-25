@@ -1,26 +1,33 @@
 * Functional Builder Pattern — Summary
-  (Dmitri Nesteruk, "Design Patterns in C# and .NET", Udemy)
+  (concept from Dmitri Nesteruk, "Design Patterns in C# and .NET", Udemy;
+   examples below use THIS repo's Shape implementation)
 
 	What it is:
 	- A builder whose state is NOT a half-built object, but a LIST OF FUNCTIONS
-	  (List<Action<Person>>) — a recipe of deferred mutations.
-	- Each step (.Called, .WorksAsA) only RECORDS an action; nothing is built yet.
-	- Build() creates a fresh Person and replays every recorded action onto it.
+	  (List<Action<Shape>>) — a recipe of deferred mutations.
+	- Each step (.DefineShape, .CalculateCircleArea, ...) only RECORDS an action;
+	  nothing is built yet.
+	- Build() creates a fresh Shape and replays every recorded action onto it.
 
 	The chain:
-	  .Called("Dmitri")        -> Actions += (p => p.Name = "Dmitri")
-	  .WorksAsA("Programmer")  -> Actions += (p => p.Position = "Programmer")
-	  .Build()                 -> p = new Person(); run all actions; return p
+	  .DefineShape("Circle")        -> ShapeBuildingActions += (s => s.ShapeType = "Circle")
+	  .CalculateCircleArea(5)       -> ShapeBuildingActions += (s => s.Area = π·5²)
+	  .CalculateCirclePerimeter(5)  -> ShapeBuildingActions += (s => s.Perimeter = 2·π·5)
+	  .Build()                      -> s = new Shape(); run all actions; clear; return s
 
 
 * THE WHOLE POINT: Open/Closed Principle
 
-	- PersonBuilder is `sealed` and only defines `Called`.
-	- `WorksAsA` is added as an EXTENSION METHOD in a separate static class,
-	  adding a NEW build step WITHOUT modifying PersonBuilder.
+	- ShapeBuilder only defines the core step `DefineShape`.
+	  (The course SEALED its builder; sealing is optional here — it just signals
+	   "extend me via extension methods, not inheritance". This repo's ShapeBuilder
+	   is a plain public class.)
+	- CalculateCircleArea / CalculateCirclePerimeter (and the Triangle ones) are
+	  added as EXTENSION METHODS in separate static plugin classes (CirclePlugin,
+	  TrianglePlugin), adding NEW build steps WITHOUT modifying ShapeBuilder.
 	- "Open for extension, closed for modification."
 	- Classic builder: every new step = edit the builder class.
-	  Functional builder: new step = just write an extension method.
+	  Functional builder: new step = just write an extension method (a new plugin).
 
 	- THE TEST (proves OCP is the design DRIVER, not just a side benefit):
 	    "If I delete the OCP benefit, does the functional design still make sense?"
@@ -29,7 +36,7 @@
 	      encapsulated, and the List<Action<T>> machinery buys you nothing.
 	    - The list-of-functions approach only EARNS its keep because it lets
 	      extension methods plug in new steps.
-	    - So every structural choice (public Actions, sealed builder, deferred
+	    - So every structural choice (public ShapeBuildingActions, deferred
 	      Build()) is bent toward making OCP extensibility possible.
 	- CAVEAT: OCP is the reason behind THIS VARIANT, not the Builder pattern
 	  as a whole. Builders in general exist to construct complex objects
@@ -38,61 +45,70 @@
 
 * HOW IT WORKS (mechanics)
 
-	- Actions is `public readonly List<Action<Person>>`.
+	- ShapeBuildingActions is `public readonly List<Action<Shape>>`.
 	    - readonly  = can't REASSIGN the list reference.
-	    - public    = extension methods can ADD to it (needed for extensibility).
+	    - public    = plugin extension methods can ADD to it (needed for extensibility).
 	    - contents are still mutable -> the trade-off: less encapsulation.
-	- Called(name): Actions.Add(p => { p.Name = name; }); return this;
-	    - the lambda CAPTURES `name` in a closure, remembered until Build().
-	- Build(): var p = new Person(); Actions.ForEach(a => a(p)); return p;
-	    - all deferred work runs HERE, in insertion order.
-	- `return this` / `return builder` on each step enables fluent chaining.
+	- DefineShape(shapeType): ShapeBuildingActions.Add(s => { s.ShapeType = shapeType; }); return this;
+	    - the lambda CAPTURES `shapeType` in a closure, remembered until Build().
+	- CalculateCircleArea(radius): ShapeBuildingActions.Add(s => { s.Area = π·radius²; }); return shapeBuilder;
+	    - same recipe, but contributed from a plugin via `this ShapeBuilder` extension method.
+	- Build(): var s = new Shape(); ShapeBuildingActions.ForEach(a => a(s)); ShapeBuildingActions.Clear(); return s;
+	    - all deferred work runs HERE, in insertion order; Clear() resets the recipe.
+	- `return this` / `return shapeBuilder` on each step enables fluent chaining.
 
 
-* SEQUENCE< (full trace: from `new Person()` to invocation)
+* SEQUENCE (full trace: from `new Shape()` to invocation, building the Circle)
 
 	Step 0 — Build() creates the object:
-	    var p = new Person();
-	    -> p.Name = null, p.Position = null   (empty shell, nothing applied yet)
+	    var s = new Shape();
+	    -> s.ShapeType = null, s.Area = 0, s.Perimeter = 0   (empty shell, nothing applied yet)
 
-	Step 1 — replay the recorded actions (Actions.ForEach(a => a(p))):
-	    Actions[0]  is   p => { p.Name = name; }          // from .Called("Dmitri")
-	    Actions[1]  is   p => { p.Position = position; }   // from .WorksAsA("Programmer")
+	Step 1 — replay the recorded actions (ShapeBuildingActions.ForEach(a => a(s))):
+	    Actions[0]  is   s => { s.ShapeType = shapeType; }   // from .DefineShape("Circle")
+	    Actions[1]  is   s => { s.Area = π·radius²; }         // from .CalculateCircleArea(5)
+	    Actions[2]  is   s => { s.Perimeter = 2·π·radius; }   // from .CalculateCirclePerimeter(5)
 
-	Step 2 — first invocation:  a(p)  where a == Actions[0]
-	    runs  p.Name = "Dmitri";        // closure replays captured name
-	    -> p.Name = "Dmitri", p.Position = null
+	Step 2 — first invocation:  a(s)  where a == Actions[0]
+	    runs  s.ShapeType = "Circle";    // closure replays captured shapeType
+	    -> ShapeType="Circle", Area=0, Perimeter=0
 
-	Step 3 — second invocation: a(p)  where a == Actions[1]
-	    runs  p.Position = "Programmer"; // closure replays captured position
-	    -> p.Name = "Dmitri", p.Position = "Programmer"
+	Step 3 — second invocation: a(s)  where a == Actions[1]
+	    runs  s.Area = π·5²;             // closure replays captured radius
+	    -> ShapeType="Circle", Area=78.54, Perimeter=0
 
-	Step 4 — Build() returns the now-complete p:
-	    return p;   // => Person { Name = "Dmitri", Position = "Programmer" }
+	Step 4 — third invocation:  a(s)  where a == Actions[2]
+	    runs  s.Perimeter = 2·π·5;       // closure replays captured radius
+	    -> ShapeType="Circle", Area=78.54, Perimeter=31.42
+
+	Step 5 — Build() clears the recipe and returns the now-complete s:
+	    ShapeBuildingActions.Clear(); return s;
+	    // => Shape { ShapeType="Circle", Area=78.54, Perimeter=31.42 }
 
 	Key timing note:
 	    - Step 1's lambdas were RECORDED earlier, back during the chain
-	      (.Called / .WorksAsA), but they only RUN now, in Build(), in order.
-	    - `a(p)` = invoke the stored Action<Person> with this exact p.
+	      (.DefineShape / .CalculateCircleArea / ...), but they only RUN now,
+	      in Build(), in order.
+	    - `a(s)` = invoke the stored Action<Shape> with this exact s.
 	    - Same field set twice? Last invocation in the sequence wins.
 
 
 * "FUNCTIONAL" — why the name?
 
 	- Builder state = a list of functions, not object state.
-	- Building = function application (apply each Action<Person> to the object).
+	- Building = function application (apply each Action<Shape> to the object).
 	- That FP flavor is where "functional builder" comes from.
 
 
 * CLASSIC vs FUNCTIONAL (quick table)
 
-	| Aspect            | Classic Builder        | Functional Builder         |
-	|-------------------|------------------------|----------------------------|
-	| Builder state     | half-built object      | List<Action<T>>            |
-	| Mutation timing   | immediately, per call  | all at once, in Build()    |
-	| Add a new step    | edit the builder class | write an extension method  |
-	| Encapsulation     | strong (state hidden)  | weaker (Actions is public) |
-	| Best for          | fixed set of steps     | steps third parties extend |
+	| Aspect            | Classic Builder        | Functional Builder                  |
+	|-------------------|------------------------|-------------------------------------|
+	| Builder state     | half-built object      | List<Action<T>>                     |
+	| Mutation timing   | immediately, per call  | all at once, in Build()             |
+	| Add a new step    | edit the builder class | write an extension method (plugin)  |
+	| Encapsulation     | strong (state hidden)  | weaker (ShapeBuildingActions public)|
+	| Best for          | fixed set of steps     | steps third parties extend          |
 
 
 * GOTCHAS / NOTES
@@ -100,12 +116,12 @@
 	- Deferred execution: actions run in the order added; if two set the same
 	  field, the LAST one added wins.
 	- Closures capture the value passed at call time and replay it unchanged.
-	- Repetition smell: every step is `Actions.Add(...); return ...;`.
+	- Repetition smell: every step is `ShapeBuildingActions.Add(...); return ...;`.
 	  -> Next lecture: GENERIC functional builder (recursive generic / CRTP)
 	     with a single Do(...) helper to remove the boilerplate.
-	- The course Main() never prints. Add:
-	     Console.WriteLine($"{person.Name} works as a {person.Position}");
-	     // Dmitri works as a Programmer
+	- Program.cs builds the shapes but never prints them. Add e.g.:
+	     Console.WriteLine($"{circle.ShapeType}: area={circle.Area}, perimeter={circle.Perimeter}");
+	     // Circle: area=78.5398..., perimeter=31.4159...
 
 
 * RELATION TO OTHER BUILDER VARIANTS
@@ -124,8 +140,8 @@
 	    ShapeBuilder b = new();
 	    Shape circle   = b.DefineShape("Circle")...Build();
 	    Shape triangle = b.DefineShape("Triangle")...Build();   // SAME b
-	- Build() NEVER clears ShapeBuildingActions, so the list only grows.
-	  The triangle's Build() replays ALL SIX actions (circle's 3 + triangle's 3)
+	- If Build() does NOT clear ShapeBuildingActions, the list only grows.
+	  The triangle's Build() then replays ALL SIX actions (circle's 3 + triangle's 3)
 	  on its fresh Shape.
 
 	Why it still looks correct:
@@ -140,14 +156,16 @@
 	  (3 actions, then 6, then 9, ...).
 
 	Root cause:
-	- Builder state is a recipe that ACCUMULATES; Build() only READS it, never resets.
+	- Builder state is a recipe that ACCUMULATES; without a reset, Build() only
+	  READS it and leaves prior steps in place.
 
 	Solutions (preferred -> fallback):
 	  (a) BEST — a fresh builder per product. Eliminates shared state instead of
 	      managing it. Match the Duck/Chicken style with a static entry point:
 	          public static ShapeBuilder Builder => new();   // fresh recipe each time
 	          Shape circle = Shape.Builder.DefineShape("Circle")...Build();
-	  (b) FALLBACK — reset inside Build() when you MUST reuse one instance:
+	  (b) FALLBACK — reset inside Build() when you MUST reuse one instance
+	      (THIS is what the code currently does):
 	          public Shape Build() {
 	              Shape s = new();
 	              ShapeBuildingActions.ForEach(a => a(s));
