@@ -2,7 +2,7 @@
 
 public static class CirclePlugin
 {
-    public static ShapeBuilder ClaculateCircleArea(this ShapeBuilder shapeBuilder, float radius)
+    public static ShapeBuilder CalculateCircleArea(this ShapeBuilder shapeBuilder, float radius)
     {
         shapeBuilder.ShapeBuildingActions.Add(circle =>
         {

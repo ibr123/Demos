@@ -1,4 +1,6 @@
 ﻿using Builders;
+using Builders.Functional.Shapes;
+using Builders.Functional.Shapes.Plugins;
 using Builders.RecursiveGeneric.Animals.Duck;
 using Builders.RecursiveGeneric.SmartEnum;
 using Builders.Stepwise.Animals.Chicken;
@@ -6,13 +8,21 @@ using Builders.Stepwise.Animals.Chicken;
 Console.WriteLine("Hello, World!");
 
 
+// Implementation of functional builder
+ShapeBuilder shapeBuilder = new();
 
+Shape circle = shapeBuilder.DefineShape("Circle").CalculateCircleArea(5).CalculateCirculePerimeter(5).Build();
+
+Shape triangle = shapeBuilder.DefineShape("Triangle").CalculateTriangleArea(6, 3).CalculateTrianglePerimeter(4, 5, 7).Build();
+
+// Implementation of stepwise builder
 Duck duck = Duck.Builder.Origin("Germany")
                        .Wight(2.5)
                        .AgeInMonths(6)
                        .Color(AnimalColors.White)
                        .Build();
 
+// Implementation of Recursive Generic
 Chicken chicken = Chicken.ChickenBuilder.Origin("Japan")
                                         .Color(AnimalColors.Black)
                                         .Weight(5.5)
@@ -35,7 +45,7 @@ OrderStatus current = OrderStatus.Pending;
 Console.WriteLine($"\nCurrent status: {current}");
 Console.WriteLine($"Next status:    {current.Next()}");
 
-OrderStatus lookedUpById   = OrderStatus.FromId(3);
+OrderStatus lookedUpById = OrderStatus.FromId(3);
 OrderStatus lookedUpByName = OrderStatus.FromName("Delivered");
 Console.WriteLine($"\nLookup by Id(3):         {lookedUpById}");
 Console.WriteLine($"Lookup by Name(Delivered): {lookedUpByName}");
