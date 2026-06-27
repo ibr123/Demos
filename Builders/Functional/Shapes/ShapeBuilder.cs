@@ -1,6 +1,6 @@
 ﻿namespace Builders.Functional.Shapes;
 
-public class ShapeBuilder
+public sealed class ShapeBuilder
 {
     public readonly List<Action<Shape>> ShapeBuildingActions = [];
 

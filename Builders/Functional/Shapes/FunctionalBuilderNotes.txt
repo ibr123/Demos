@@ -19,9 +19,8 @@
 * THE WHOLE POINT: Open/Closed Principle
 
 	- ShapeBuilder only defines the core step `DefineShape`.
-	  (The course SEALED its builder; sealing is optional here — it just signals
-	   "extend me via extension methods, not inheritance". This repo's ShapeBuilder
-	   is a plain public class.)
+	  (Both the course AND this repo SEAL the builder: `public sealed class ShapeBuilder`.
+	   See the "WHY SEALED" note below for why intent — not safety/perf — is the reason.)
 	- CalculateCircleArea / CalculateCirclePerimeter (and the Triangle ones) are
 	  added as EXTENSION METHODS in separate static plugin classes (CirclePlugin,
 	  TrianglePlugin), adding NEW build steps WITHOUT modifying ShapeBuilder.
@@ -41,6 +40,24 @@
 	- CAVEAT: OCP is the reason behind THIS VARIANT, not the Builder pattern
 	  as a whole. Builders in general exist to construct complex objects
 	  step-by-step; only the functional variant is driven by OCP.
+
+
+* WHY SEALED (ShapeBuilder is `public sealed class`)
+
+	- The ONLY load-bearing reason here is DESIGN INTENT, not safety or perf:
+	  "extend me via EXTENSION METHODS from the outside, never by subclassing."
+	  Sealing enforces that contract instead of just implying it.
+	- The usual textbook reasons DON'T apply to this class:
+	    - "prevents overriding / breaking invariants" -> there are NO virtual members,
+	      so a subclass couldn't override anything anyway. (It could only HIDE a method
+	      with `new`, which doesn't change behavior for callers holding a ShapeBuilder.)
+	    - "devirtualization perf" -> only helps virtual call sites; there are none.
+	- So seal it purely as a COMMUNICATED CONVENTION: new steps arrive as
+	  CirclePlugin-style extension methods, not via inheritance.
+	- The plugins (CirclePlugin/TrianglePlugin) are `static` classes = ALREADY
+	  implicitly sealed; you can't write `sealed` on them and can't inherit them.
+	- Rule of thumb: seal by default UNLESS a class is explicitly designed as a base
+	  class. For a builder whose extension point is extension methods, sealed fits.
 
 
 * HOW IT WORKS (mechanics)
@@ -122,6 +139,46 @@
 	- Program.cs builds the shapes but never prints them. Add e.g.:
 	     Console.WriteLine($"{circle.ShapeType}: area={circle.Area}, perimeter={circle.Perimeter}");
 	     // Circle: area=78.5398..., perimeter=31.4159...
+
+
+* COMPILE ERROR — double -> float (CS1503) when calling a plugin
+
+	The error:
+	    Program.cs(14,71): error CS1503: Argument 2: cannot convert from 'double' to 'float'
+	    // from:  shapeBuilder.DefineShape("Circle").CalculateCircleArea(5.3)...
+
+	Cause — LITERAL TYPING:
+	- A bare decimal literal like `5.3` (or `5.4`) is a DOUBLE by default.
+	- `5.3f` (or `5.3F`) is a FLOAT — the `f`/`F` suffix picks the type.
+	- The plugin signature wants a float:
+	      public static ShapeBuilder CalculateCircleArea(this ShapeBuilder shapeBuilder, float radius)
+	- So passing the double `5.3` into a float parameter is rejected.
+
+	Why "Argument 2" (not Argument 1):
+	- It's an EXTENSION METHOD. `shapeBuilder.CalculateCircleArea(5.3)` is sugar for
+	  `CirclePlugin.CalculateCircleArea(shapeBuilder, 5.3)`.
+	  -> arg 1 = the receiver `shapeBuilder`, arg 2 = `5.3` (the radius). Hence "Argument 2".
+
+	Why the compiler refuses (NARROWING vs WIDENING):
+	- double -> float is a NARROWING conversion (double holds more range/precision than
+	  float), so C# will NOT do it implicitly — you could silently lose data.
+	- The reverse, float -> double, is WIDENING and happens implicitly with no error.
+	- That's also why `.CalculateCirclePerimeter(5)` is fine: `5` is an INT, and
+	  int -> float is widening (implicit). Only the decimal literal trips it.
+
+	Fixes (any one):
+	  (a) `CalculateCircleArea(5.3f)`     — make it a float literal (simplest).
+	  (b) `CalculateCircleArea((float)5.3)` — explicit cast (also narrows; you opt in).
+	  (c) change the parameter to `double radius` in the plugin — if you'd rather the
+	      API accept doubles. (Then `5.3` works as-is.)
+
+	Literal-suffix cheat sheet:
+	    5      -> int
+	    5.4    -> double        (default for decimals)
+	    5.4f   -> float
+	    5.4m   -> decimal       (high precision; money)
+	    5L     -> long
+	    5.0 / 5d -> double
 
 
 * RELATION TO OTHER BUILDER VARIANTS

@@ -115,7 +115,7 @@ sets one of these three properties.
 ## 5. `ShapeBuilder.cs` — The Core Builder
 
 ```csharp
-public class ShapeBuilder
+public sealed class ShapeBuilder
 {
     public readonly List<Action<Shape>> ShapeBuildingActions = [];
 
@@ -133,10 +133,25 @@ public class ShapeBuilder
     {
         Shape shape = new();
         ShapeBuildingActions.ForEach(buildingAction => buildingAction(shape));
+        ShapeBuildingActions.Clear();   // reset the recipe so the next product starts clean
         return shape;
     }
 }
 ```
+
+> **Deep-understanding note — why `sealed`, and why *only* for intent.** `ShapeBuilder`
+> is `sealed`, so no class can inherit from it. The honest reason here is **design
+> intent, not safety or performance**: the functional builder's contract is "extend me
+> by adding *extension methods* from the outside, never by subclassing." Sealing
+> enforces that contract instead of merely implying it.
+> The usual textbook arguments for sealing *don't* carry weight in this class: there
+> are **no `virtual` members**, so a subclass could not `override` anything or break an
+> invariant anyway (the most it could do is *hide* a method with `new`, which doesn't
+> change behavior for callers holding a `ShapeBuilder`). And devirtualization perf only
+> helps virtual call sites, of which there are none. So the single load-bearing reason
+> is the **communicated convention**: plug in new steps via `CirclePlugin`-style
+> extension methods, not inheritance. (The plugins are `static` classes, which are
+> already implicitly sealed — you can't write `sealed` on them and can't inherit them.)
 
 Three pieces, each with a deliberate access choice:
 
@@ -158,8 +173,9 @@ Three pieces, each with a deliberate access choice:
   closure and remembers it until `Build()` runs.
 
 - **`Build()`** — the only place real work happens. Creates a fresh `Shape`, then
-  `ForEach` replays every recorded action onto it **in insertion order**, and
-  returns it.
+  `ForEach` replays every recorded action onto it **in insertion order**, clears the
+  recipe (`ShapeBuildingActions.Clear()`) so the next product starts clean, and
+  returns it. (See §8 for why the clear is there.)
 
   > **Deep-understanding note — deferred execution + last-write-wins.** The lambdas
   > were *recorded* during the chain but only *run* here, in order. If two actions
@@ -492,8 +508,10 @@ be supplied in a specific order, checked at compile time.
 
 ## 12. Continuation / TODO
 
-- **Reset between products:** make `Build()` clear `ShapeBuildingActions`, or create
-  a fresh `ShapeBuilder` per product, to remove the shared-recipe gotcha in §8.
+- ~~**Reset between products:** make `Build()` clear `ShapeBuildingActions`, or create
+  a fresh `ShapeBuilder` per product, to remove the shared-recipe gotcha in §8.~~
+  **Done** — `Build()` now calls `ShapeBuildingActions.Clear()` (the §8(b) fix). A
+  fresh-builder-per-product entry point (§8(a)) remains a possible future improvement.
 - **Remove boilerplate:** every step is `Actions.Add(...); return ...;`. The next
   evolution is a *generic* functional builder (recursive generic / CRTP) with a
   single `Do(...)` helper that records the action and returns `Self`, so plugins
