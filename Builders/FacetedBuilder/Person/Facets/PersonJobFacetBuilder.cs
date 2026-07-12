@@ -3,14 +3,19 @@ namespace Builders.FacetedBuilder.Person.Facets;
 
 public class PersonJobFacetBuilder : PersonBuilder
 {
+    public PersonJobFacetBuilder(Person person)
+    {
+        this.person = person;
+    }
+
     
-    public PersonJobFacetBuilder WorksAt(string companyName)
+    public PersonJobFacetBuilder At(string companyName)
     {
         person.CompanyName = companyName;
         return this;
     }
 
-    public PersonJobFacetBuilder WorksAs(string profession)
+    public PersonJobFacetBuilder ProfessionAs(string profession)
     {
         person.JobField = profession;
         return this;

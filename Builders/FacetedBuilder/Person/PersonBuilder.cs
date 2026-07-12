@@ -7,9 +7,9 @@ public class PersonBuilder
 {
     protected Person person = new();
 
-    public PersonAddressFacetBuilder Address => new();
+    public PersonAddressFacetBuilder Address => new(person);
 
-    public PersonJobFacetBuilder Job => new();
+    public PersonJobFacetBuilder Job => new(person);
 
     public static implicit operator Person(PersonBuilder pb)
     {

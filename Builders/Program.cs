@@ -6,15 +6,17 @@ using Builders.RecursiveGeneric.Animals.Duck;
 using Builders.RecursiveGeneric.SmartEnum;
 using Builders.Stepwise.Animals.Chicken;
 
-Console.WriteLine("Hello, World!");
 
-// Implementation of facade builder
-PersonBuilder person = new PersonBuilder();
-person.Address.LivesAt("Amman", "ShafaBadran", "Yajooz")
-      .Job.WorksAt("Microsoft")
-          .WorksAs("Developer")
-          .Makes(10);
+// Implementation of faceted builder
+PersonBuilder pb = new();
+Person person = pb
+    .Address.At(city: "Amman", postCode: "007799", streetName: "Yajooz")
+    .Job.At("Microsoft")
+        .ProfessionAs("Developer")
+        .Makes(10);
+Console.WriteLine(person);
 
+Console.ReadLine();
 
 // Implementation of functional builder
 ShapeBuilder shapeBuilder = new();
