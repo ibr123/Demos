@@ -1,4 +1,5 @@
 ﻿using Builders;
+using Builders.FacetedBuilder.Person;
 using Builders.Functional.Shapes;
 using Builders.Functional.Shapes.Plugins;
 using Builders.RecursiveGeneric.Animals.Duck;
@@ -6,6 +7,13 @@ using Builders.RecursiveGeneric.SmartEnum;
 using Builders.Stepwise.Animals.Chicken;
 
 Console.WriteLine("Hello, World!");
+
+// Implementation of facade builder
+PersonBuilder person = new PersonBuilder();
+person.Address.LivesAt("Amman", "ShafaBadran", "Yajooz")
+      .Job.WorksAt("Microsoft")
+          .WorksAs("Developer")
+          .Makes(10);
 
 
 // Implementation of functional builder

@@ -34,6 +34,20 @@
   Keep them sharp and one-or-two lines. Call out *why* something works, edge cases,
   timing/ordering subtleties, and the real motive behind a design.
 
+- **Flag issues directly — I read them as educational, not criticism.** If you spot
+  anything wrong, suboptimal, or questionable in this repo (bugs, naming, design
+  smells, better alternatives, etc.), tell me plainly and explain *why*. Don't soften
+  it, hedge, or hold back to avoid sounding critical — I *want* the educational point.
+  Prefer a clear recommendation over a neutral list of options.
+
+- **Don't treat the course author as the only authority — prioritize global/common
+  standards.** The resource files come from a specific course (e.g. Dmitri Nesteruk's),
+  but that author is *a* source, not *the* source. Ground explanations in widely-accepted
+  industry standards and terminology (GoF, common C#/.NET convention), and proactively
+  notify me about insights that go BEYOND the author's specific design — broader
+  conventions, alternative approaches, or where the author's choice diverges from what's
+  standard elsewhere.
+
 ---
 
 ## Project notes / conventions

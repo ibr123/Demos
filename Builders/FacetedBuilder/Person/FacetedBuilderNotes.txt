@@ -28,7 +28,9 @@
 	- PersonBuilder     -> the FACADE / root. Holds the Person, exposes the facet
 	                       entry points `.Lives` and `.Works`, and the implicit
 	                       conversion back to Person.
+	-- HERE
 	- PersonAddressBuilder -> facet sub-builder: .At(street) .WithPostcode(pc) .In(city)
+	-- HERE
 	- PersonJobBuilder     -> facet sub-builder: .At(company) .AsA(position) .Earning(income)
 	- Both sub-builders INHERIT PersonBuilder (this is the load-bearing trick — see below).
 
@@ -68,7 +70,7 @@
 	- Trade-off of that freedom: nothing forces completeness or order. You can
 	  skip a whole facet, or set a facet twice. Contrast the STEPWISE builder,
 	  which uses interfaces to FORCE order/completeness. Faceted optimizes for
-	  ergonomic grouping, not for enforcement.
+	  **ergonomic grouping, not for enforcement**.
 
 
 * THE SHARED REFERENCE — ONE Person, MANY builders (the `// this is a reference!` note)
