@@ -1,0 +1,253 @@
+* Faceted Builder Pattern — Summary
+
+	NAMING — this is the FACETED builder:
+	- "Faceted builder" is the standard name: one product is built through several
+	  separate ASPECTS (facets) — here address and job — each via its own sub-builder.
+	  The project follows this name (folder Builders/FacetedBuilder, namespace
+	  ...FacetedBuilder.Person, and this FacetedBuilderNotes.txt).
+	- Don't confuse it with the GoF FACADE pattern — a different, unrelated pattern;
+	  the name similarity is just a coincidence.
+	- (Aside) The root PersonBuilder is sometimes described as a "facade" — a single
+	  front door that hands out the facet sub-builders — but that's a loose description
+	  of its role, not a second name for the pattern.
+
+	What it is:
+	- One product (Person) has too many properties to build with a single flat
+	  fluent builder, so the properties are split into GROUPS (facets):
+	      address    -> StreetAddress, Postcode, City
+	      employment -> CompanyName, Position, AnnualIncome
+	- Each facet gets its OWN sub-builder (PersonAddressBuilder, PersonJobBuilder),
+	  each exposing only the methods relevant to that facet.
+	- A single facade (PersonBuilder) is the entry point and lets you hop between
+	  facets in one fluent chain, all mutating ONE shared Person.
+
+
+* THE CAST (who's who)
+	-- HERE
+	- Person            -> the PRODUCT being built (a plain data class + ToString).
+	- PersonBuilder     -> the FACADE / root. Holds the Person, exposes the facet
+	                       entry points `.Lives` and `.Works`, and the implicit
+	                       conversion back to Person.
+	- PersonAddressBuilder -> facet sub-builder: .At(street) .WithPostcode(pc) .In(city)
+	- PersonJobBuilder     -> facet sub-builder: .At(company) .AsA(position) .Earning(income)
+	- Both sub-builders INHERIT PersonBuilder (this is the load-bearing trick — see below).
+
+
+* THE CHAIN (annotated — what each call returns)
+
+	  var pb = new PersonBuilder();            // pb : PersonBuilder (facade, owns a fresh Person)
+	  Person person = pb
+	    .Lives                                 // -> new PersonAddressBuilder(sharedPerson)
+	      .At("123 London Road")               // sets StreetAddress; returns this (PersonAddressBuilder)
+	      .In("London")                        // sets City;          returns this
+	      .WithPostcode("SW12BC")              // sets Postcode;      returns this
+	    .Works                                 // inherited entry point -> new PersonJobBuilder(sharedPerson)
+	      .At("Fabrikam")                      // sets CompanyName;   returns this (PersonJobBuilder)
+	      .AsA("Engineer")                     // sets Position;      returns this
+	      .Earning(123000);                    // sets AnnualIncome;  returns this (PersonJobBuilder)
+	  // assignment to a `Person` variable triggers the implicit operator -> returns pb's Person
+
+	Reads like English on purpose — the whole design is a tiny DSL:
+	  "(this person) Lives At ... In ... With Postcode ...; Works At ... As A ... Earning ..."
+
+
+* THE KEY TRICK — SUB-BUILDERS INHERIT THE FACADE (this is what makes facets switch)
+
+	- PersonJobBuilder : PersonBuilder  and  PersonAddressBuilder : PersonBuilder.
+	- Because each sub-builder IS-A PersonBuilder, each ALSO exposes `.Lives` and
+	  `.Works`. THAT is the mechanism that lets you jump out of the address facet
+	  (`.Lives...`) straight into the job facet (`.Works...`) mid-chain.
+	- Delete the inheritance and the pattern collapses: once `.Lives` returned a
+	  bare PersonAddressBuilder, `.Works` would not exist on it and the chain
+	  couldn't cross facets.
+
+	Deep-understanding note:
+	- The facets are RE-ENTERABLE and ORDER-FREE. You can bounce back and forth:
+	      pb.Lives.At("x").Works.At("y").Lives.In("z")   // legal
+	  because every hop just returns another builder pointing at the SAME Person.
+	- Trade-off of that freedom: nothing forces completeness or order. You can
+	  skip a whole facet, or set a facet twice. Contrast the STEPWISE builder,
+	  which uses interfaces to FORCE order/completeness. Faceted optimizes for
+	  ergonomic grouping, not for enforcement.
+
+
+* THE SHARED REFERENCE — ONE Person, MANY builders (the `// this is a reference!` note)
+
+	- `protected Person person = new Person();` in PersonBuilder allocates the Person
+	  exactly ONCE (per facade).
+	- `.Lives => new PersonAddressBuilder(person)` and `.Works => new PersonJobBuilder(person)`
+	  pass THAT SAME reference into each sub-builder's constructor, which stores it in
+	  the inherited `person` field. So every sub-builder mutates the ONE Person.
+	- The comment "this is a reference!" flags exactly this: Person is a REFERENCE
+	  TYPE, so passing it around shares the object, never copies it. All the facet
+	  writes land on the same instance and compose into one finished Person.
+
+	Deep-understanding note (why the `// might not work with a value type!` warning matters):
+	- If Person were a STRUCT (value type), `new PersonAddressBuilder(person)` would
+	  pass a COPY. Each sub-builder would edit its own private copy, the facets would
+	  never merge, and the final object would be missing whatever the other facet set.
+	- The entire pattern silently DEPENDS on Person being a class. That dependency is
+	  invisible in the happy path and is exactly what the warning comment preserves.
+
+
+* THE IMPLICIT OPERATOR — the invisible Build() (there is NO .Build() here)
+
+	  public static implicit operator Person(PersonBuilder pb) => pb.person;
+
+	- The chain's last call `.Earning(123000)` returns a PersonJobBuilder, NOT a Person.
+	  Yet `Person person = ...` compiles, because assigning a builder to a `Person`
+	  variable fires this user-defined IMPLICIT conversion, which returns `pb.person`.
+	- Since PersonJobBuilder IS-A PersonBuilder, the base-typed operator applies to it
+	  (and to PersonAddressBuilder) too.
+	- So the TERMINAL operation of the build is the assignment's type coercion — the
+	  build "finishes" the moment you store it into a Person. Elegant, but subtle.
+
+	PITFALL — `var` defeats it:
+	- `var person = pb.Lives...Earning(123000);` infers PersonJobBuilder (no target
+	  type, so no conversion). You now hold a BUILDER, not a Person.
+	- Then `WriteLine(person)` prints "...BuilderFacets.PersonJobBuilder" (the default
+	  ToString), NOT the nice Person string — a silent, confusing bug.
+	- The Demo works precisely because it declares `Person person = ...`. The explicit
+	  target type is what pulls the trigger.
+
+	Aliasing gotcha:
+	- The operator returns the SAME reference the builder holds (aliasing, not a copy).
+	  If you keep `pb` and mutate it after extracting `person`
+	  (e.g. `pb.Lives.In("Paris")`), you also mutate the already-extracted `person`.
+	  A builder here is single-use by intent; treat it as spent after conversion.
+
+	Style aside:
+	- It's `implicit` (no cast) for seamless assignment. `explicit` would force
+	  `(Person)pb`. Some style guides distrust implicit conversions (they hide work),
+	  but here it's the deliberate, ergonomic finish line.
+
+
+* HOW IT WORKS (mechanics, member by member)
+
+	- PersonBuilder.person : `protected` so derived sub-builders can read AND reassign it.
+	- .Lives / .Works : expression-bodied GET-ONLY properties (`=>`), not fields.
+	    - Each ACCESS returns a NEW sub-builder (cheap), all sharing the one Person.
+	    - Properties (not methods) so the chain reads as prose: `pb.Lives.At(...)`,
+	      not `pb.Lives().At(...)`.
+	- Sub-builder ctors: `this.person = person;` overwrites the inherited field with the
+	  shared instance handed in by the facade.
+	- Facet methods: set one field, then `return this;` -> fluent chaining WITHIN a facet.
+	- Facet SWITCHING is a separate move: the inherited `.Lives`/`.Works` properties,
+	  which spin up a new sub-builder on the same Person.
+
+	Deep-understanding note — method-name REUSE by facet (`At` twice, on purpose):
+	- BOTH PersonAddressBuilder AND PersonJobBuilder define `At(string)`:
+	      .Lives.At("123 London Road")   -> StreetAddress
+	      .Works.At("Fabrikam")          -> CompanyName
+	  Same verb, different type, different meaning — legal because they live on
+	  different sub-builders. The facet acts as a NAMESPACE/CONTEXT that lets you
+	  reuse natural English verbs ("Lives at", "Works at") without collision. That
+	  reuse is a genuine BENEFIT of splitting into facets, not an accident.
+
+
+* SEQUENCE (full trace: from `new PersonBuilder()` to the finished Person)
+
+	Step 0 — new PersonBuilder():
+	    PersonBuilder.person = new Person();   // one empty shell: all fields null / 0
+
+	Step 1 — pb.Lives:
+	    returns new PersonAddressBuilder(person)  // new sub-builder, SAME person ref
+
+	Step 2 — .At("123 London Road") .In("London") .WithPostcode("SW12BC"):
+	    person.StreetAddress = "123 London Road"
+	    person.City          = "London"
+	    person.Postcode      = "SW12BC"
+	    (each returns `this`; note: In() runs before WithPostcode(), yet ToString
+	     prints Postcode before City — chain order is independent of field order)
+
+	Step 3 — .Works  (inherited property on the PersonAddressBuilder):
+	    returns new PersonJobBuilder(person)      // yet another sub-builder, SAME person
+
+	Step 4 — .At("Fabrikam") .AsA("Engineer") .Earning(123000):
+	    person.CompanyName  = "Fabrikam"
+	    person.Position     = "Engineer"
+	    person.AnnualIncome = 123000
+
+	Step 5 — assignment `Person person = <PersonJobBuilder>`:
+	    implicit operator fires -> returns pb's shared person
+	    // => Person { StreetAddress="123 London Road", Postcode="SW12BC", City="London",
+	    //             CompanyName="Fabrikam", Position="Engineer", AnnualIncome=123000 }
+
+	Console output (WriteLine(person) -> Person.ToString):
+	    StreetAddress: 123 London Road, Postcode: SW12BC, City: London,
+	    CompanyName: Fabrikam, Position: Engineer, AnnualIncome: 123000
+
+	Key timing note:
+	    - There is no deferral here (unlike the Functional builder). Each facet call
+	      mutates the shared Person IMMEDIATELY. The only thing that happens "at the
+	      end" is the implicit conversion handing back that already-built object.
+
+
+* WHY NOT SEALED (deliberate contrast with the Functional builder)
+
+	- PersonBuilder is intentionally INHERITABLE — the sub-builders ARE subclasses,
+	  and they inherit `.Lives`/`.Works` to enable facet switching. Sealing the base
+	  would BREAK the pattern.
+	- Compare FunctionalBuilderNotes.txt "WHY SEALED": there the extension point was
+	  EXTENSION METHODS, so sealing (block subclassing) communicated the right intent.
+	- One-line takeaway: extension mechanism dictates the seal decision.
+	      Functional builder -> extend via extension methods -> SEAL the builder.
+	      Faceted  builder   -> extend via SUBCLASS sub-builders -> must stay OPEN.
+
+
+* FIELD-INITIALIZER ORDERING (a real, if minor, curiosity — wasted Person allocations)
+
+	- Constructing a sub-builder allocates and immediately DISCARDS one empty Person.
+	- Why: C# runs a class's field initializers as part of ITS constructor, base
+	  before derived body. For `new PersonAddressBuilder(person)`:
+	      1. base PersonBuilder ctor runs its field initializer: person = new Person()
+	         (an empty throwaway Person is allocated here)
+	      2. PersonAddressBuilder ctor body runs: this.person = person
+	         (overwrites the field with the shared one; the throwaway is now garbage)
+	- So the demo allocates 3 Persons total: 1 real (in `new PersonBuilder()`) + 2
+	  throwaways (one per `.Lives` / `.Works`). Harmless here, but a genuine insight
+	  into C# init order — the base initializer ALWAYS runs before the derived ctor
+	  can redirect the field.
+
+
+* FACETED vs OTHER BUILDER VARIANTS (quick table)
+
+	| Aspect          | Faceted (THIS)             | Functional         | Stepwise            |
+	|-----------------|----------------------------|--------------------|---------------------|
+	| Builder state   | one shared Person, mutated | List<Action<T>>    | half-built object   |
+	| Structure       | facade + subclass builders | 1 class + plugins  | chained interfaces  |
+	| Mutation timing | immediate, per call        | deferred to Build()| immediate, per call |
+	| Enforces order? | NO (facets are free/reord.)| NO                 | YES (via interfaces)|
+	| Finish step     | implicit operator -> Person| explicit .Build()  | explicit .Build()   |
+	| Best when       | many props in clear GROUPS | 3rd-party new steps| a required sequence |
+
+
+* WHEN TO USE / WHEN NOT
+
+	- USE when a single object has many properties that fall into natural aspects,
+	  and one flat fluent API would be an unwieldy wall of methods. Facets keep each
+	  sub-builder small and let verbs like `At` mean different things per context.
+	- DON'T reach for it when there are only a few properties (a plain fluent builder
+	  is simpler), or when you must ENFORCE an order/required set (use stepwise), or
+	  when third parties need to bolt on new steps without touching you (functional).
+
+
+* GOTCHAS / NOTES
+
+	- No .Build(): the terminal is the implicit conversion, driven by the TARGET type.
+	  Assign to `Person` (not `var`) or you keep a builder and print the wrong thing.
+	- Depends on Person being a reference type; a struct would break facet composition.
+	- Facets are order-free and re-enterable; nothing guarantees completeness.
+	- Builder and returned Person ALIAS the same object — the builder is spent after use.
+	- Unused usings (System.Linq, System.Text, System.Threading.Tasks) are template
+	  noise; the demo needs only System / static System.Console.
+
+
+* RELATION TO OTHER BUILDER VARIANTS
+
+	- Fluent builder   -> returns `this` for chaining (facets do this within a facet).
+	- Faceted builder (THIS) -> a facade hands out multiple sub-builders, one per aspect,
+	  all mutating one shared product; hop between them via inherited entry points.
+	- Functional builder -> state is a list of deferred actions; optimized for OCP
+	  extension via extension-method plugins (see FunctionalBuilderNotes.txt).
+	- Stepwise builder  -> interfaces force call ORDER (e.g. the Chicken example).
