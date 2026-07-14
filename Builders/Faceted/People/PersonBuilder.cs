@@ -1,7 +1,7 @@
 ﻿
-using Builders.FacetedBuilder.Person.Facets;
+using Builders.Faceted.People.Facets;
 
-namespace Builders.FacetedBuilder.Person;
+namespace Builders.Faceted.People;
 
 public class PersonBuilder
 {

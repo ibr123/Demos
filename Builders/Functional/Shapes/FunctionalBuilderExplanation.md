@@ -10,9 +10,9 @@ pattern — to read this file top to bottom and understand the design.
 
 This is a *different* design goal from the other two builders in this repo:
 
-- The `Duck` builder (`RecursiveGeneric/Animals/Duck/DuckBuilderExplanation.md`)
+- The `Duck` builder (`RecursiveGeneric/Animals/Ducks/DuckBuilderExplanation.md`)
   optimizes for **any-order** chaining via a self-referential generic.
-- The `Chicken` builder (`Stepwise/Animals/Chicken/ChickenStepwiseBuilderExplanation.md`)
+- The `Chicken` builder (`Stepwise/Animals/Chickens/ChickenStepwiseBuilderExplanation.md`)
   optimizes for **forced-order** chaining via per-step interfaces.
 - The `Shape` builder (this one) optimizes for **open/closed extensibility** — new
   steps are added from the *outside*, with no edit to `ShapeBuilder`.

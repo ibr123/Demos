@@ -10,7 +10,7 @@ end-to-end and understand the design. It is also written so that **new
 sections can be appended later** without breaking the existing flow — see the
 "Continuation" placeholder at the bottom.
 
-If you have not yet read `Builders/RecursiveGeneric/Animals/Duck/DuckBuilderExplanation.md`,
+If you have not yet read `Builders/RecursiveGeneric/Animals/Ducks/DuckBuilderExplanation.md`,
 that file covers the same recursive-generic mechanic in a different context
 (builder pattern). Reading it first is helpful but not required; the relevant
 mechanics are re-explained here in the enum context.

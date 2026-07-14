@@ -8,7 +8,7 @@ The goal is for **anyone** — even a junior developer who has never seen this
 pattern — to read this file top to bottom and understand the design.
 
 This is the *opposite* design goal of the `Duck` builder (see
-`RecursiveGeneric/Animals/Duck/DuckBuilderExplanation.md`). The Duck builder
+`RecursiveGeneric/Animals/Ducks/DuckBuilderExplanation.md`). The Duck builder
 lets you call methods in **any order**; the Chicken builder **enforces a strict
 sequence**.
 

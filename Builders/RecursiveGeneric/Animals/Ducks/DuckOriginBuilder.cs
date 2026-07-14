@@ -1,4 +1,4 @@
-﻿namespace Builders.RecursiveGeneric.Animals.Duck;
+﻿namespace Builders.RecursiveGeneric.Animals.Ducks;
 
 public class DuckOriginBuilder<Self> : DuckAgeBuilder<Self>
     where Self : DuckOriginBuilder<Self>

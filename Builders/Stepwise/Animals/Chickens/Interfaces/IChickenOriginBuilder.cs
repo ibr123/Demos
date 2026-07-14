@@ -1,4 +1,4 @@
-﻿namespace Builders.Stepwise.Animals.Chicken.Interfaces;
+﻿namespace Builders.Stepwise.Animals.Chickens.Interfaces;
 
 public interface IChickenOriginBuilder
 {

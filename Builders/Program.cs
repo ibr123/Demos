@@ -1,22 +1,22 @@
 ﻿using Builders;
-using Builders.FacetedBuilder.Person;
+using Builders.Faceted.People;
 using Builders.Functional.Shapes;
 using Builders.Functional.Shapes.Plugins;
-using Builders.RecursiveGeneric.Animals.Duck;
+using Builders.RecursiveGeneric.Animals.Ducks;
 using Builders.RecursiveGeneric.SmartEnum;
-using Builders.Stepwise.Animals.Chicken;
+using Builders.Stepwise.Animals.Chickens;
 
 
 // Implementation of faceted builder
-PersonBuilder pb = new();
-Person person = pb
+PersonBuilder personBuilder = new();
+Person person = personBuilder
     .Address.At(city: "Amman", postCode: "007799", streetName: "Yajooz")
     .Job.At("Microsoft")
         .ProfessionAs("Developer")
         .Makes(10);
 Console.WriteLine(person);
 
-Console.ReadLine();
+//Console.ReadLine();
 
 // Implementation of functional builder
 ShapeBuilder shapeBuilder = new();

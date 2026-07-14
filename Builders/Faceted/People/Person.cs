@@ -1,5 +1,5 @@
 ﻿
-namespace Builders.FacetedBuilder.Person;
+namespace Builders.Faceted.People;
 
 public class Person
 {
@@ -13,7 +13,7 @@ public class Person
     public override string ToString()
     {
         return
-        "Facated Builder Example"
+        "Faceted Builder Example"
         + "\n" +
         $"{nameof(StreetName)}: {StreetName}, {nameof(PostCode)}: {PostCode}, {nameof(City)}: {City}, "
         + "\n" +

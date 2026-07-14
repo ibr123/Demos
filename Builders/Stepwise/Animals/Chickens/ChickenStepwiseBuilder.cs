@@ -1,6 +1,6 @@
-using Builders.Stepwise.Animals.Chicken.Interfaces;
+using Builders.Stepwise.Animals.Chickens.Interfaces;
 
-namespace Builders.Stepwise.Animals.Chicken;
+namespace Builders.Stepwise.Animals.Chickens;
 
 public class ChickenStepwiseBuilder : IAggregateChickenBuilder
 {

@@ -1,4 +1,4 @@
-﻿namespace Builders.RecursiveGeneric.Animals.Duck;
+﻿namespace Builders.RecursiveGeneric.Animals.Ducks;
 
 //used for returning Duck instance
 public abstract class DuckFeatures

@@ -1,5 +1,5 @@
 ﻿
-namespace Builders.FacetedBuilder.Person.Facets;
+namespace Builders.Faceted.People.Facets;
 
 public class PersonAddressFacetBuilder : PersonBuilder
 {
