@@ -1,0 +1,171 @@
+General programming notes (not tied to a specific builder/pattern demo).
+
+*************************************************************************
+
+Q: In .NET 10, how can an enum be "changed"/extended using new syntax?
+
+A: C# 14 (ships with .NET 10) introduces "extension members" (extension
+blocks) — a generalization of extension methods that lets you attach
+properties, static members, and even indexers to an existing type,
+including an enum, WITHOUT touching the enum's own declaration.
+
+This gives you enum + behavior (similar in spirit to a smart-enum
+pattern) without building a full class hierarchy for it.
+
+Example, given:
+
+    public enum AnimalColors
+    {
+        White,
+        Black,
+        Green,
+        Blue
+    }
+
+You can bolt members onto it like this:
+
+    public static class AnimalColorsExtensions
+    {
+        extension(AnimalColors color)
+        {
+            public string HexCode => color switch
+            {
+                AnimalColors.White => "#FFFFFF",
+                AnimalColors.Black => "#000000",
+                AnimalColors.Green => "#00FF00",
+                AnimalColors.Blue  => "#0000FF",
+                _ => throw new ArgumentOutOfRangeException(nameof(color))
+            };
+
+            public bool IsDark => color is AnimalColors.Black or AnimalColors.Blue;
+        }
+
+        extension(AnimalColors)
+        {
+            public static AnimalColors Default => AnimalColors.White;
+        }
+    }
+
+Usage:
+
+    var c = AnimalColors.Green;
+    Console.WriteLine(c.HexCode);   // "#00FF00" - instance-style member
+    Console.WriteLine(c.IsDark);    // false
+    var d = AnimalColors.Default;   // static member "on" the enum type
+
+Key points:
+- `extension(AnimalColors color)` opens an INSTANCE extension block -
+  `color` acts like `this` inside, so members read like they belong to
+  the enum (`c.HexCode`, not `AnimalColorsExtensions.HexCode(c)`).
+- `extension(AnimalColors)` (no parameter name) opens a STATIC extension
+  block, letting you add static members like `Default` directly to the
+  enum type.
+- The enum declaration itself stays untouched - all extra behavior lives
+  in the extension class, so it's additive and doesn't require
+  recompiling/changing the original type.
+- Trade-off vs. a full smart-enum pattern: no per-member state or
+  polymorphism - it's still a plain `enum` under the hood, just with
+  attached members.
+
+*************************************************************************
+
+Q: What does `public static implicit operator SomeType(...)` mean, and how
+do user-defined conversions work in general?
+
+A: It's a USER-DEFINED CONVERSION OPERATOR - you are teaching the compiler how
+to turn one type into another. It's operator overloading, but for the
+"convert/cast" operation instead of `+` or `==`.
+
+Two flavors:
+- `implicit` - the conversion happens AUTOMATICALLY; no cast is written at the
+  call site. Use it ONLY when the conversion always succeeds, loses no data, and
+  never throws.
+- `explicit` - the caller MUST write a `(TargetType)` cast. Use it when the
+  conversion can lose data, can fail/throw, or is a narrowing you want the
+  programmer to consciously opt into.
+
+Anatomy of the signature (it reads oddly - the "return type" is fused into the
+operator name):
+
+    public static implicit operator double(Fraction f)
+
+- `public static` is MANDATORY; a conversion operator can only be public static.
+- `implicit` is the FLAVOR (swap for `explicit` to force a cast at call sites).
+- `operator` is the keyword that marks this member as a conversion.
+- `double` is the TARGET type - what you get OUT; it sits exactly where a normal
+  method's return type would go.
+- `(Fraction f)` is the ONE parameter - the SOURCE type you convert FROM.
+
+RULE: the operator must be declared INSIDE either the source or the target type.
+You can't add a conversion between two types you don't own (no bolting a
+`string` -> `int` conversion onto the framework).
+
+EXAMPLE - a Fraction type (e.g. 3/4) with one of each flavor:
+
+    public readonly struct Fraction
+    {
+        public int Numerator { get; }
+        public int Denominator { get; }
+
+        public Fraction(int numerator, int denominator)
+        {
+            Numerator = numerator;
+            Denominator = denominator;
+        }
+
+        // IMPLICIT: every fraction has a well-defined numeric value, so using a
+        // Fraction as a double is always safe -> no cast required.
+        public static implicit operator double(Fraction f)
+            => (double)f.Numerator / f.Denominator;
+
+        // EXPLICIT: an arbitrary double is only APPROXIMATED as a fraction
+        // (lossy), so force the caller to opt in with a cast.
+        public static explicit operator Fraction(double d)
+            => new Fraction((int)(d * 1000), 1000);
+    }
+
+Using it:
+
+    Fraction threeQuarters = new Fraction(3, 4);
+
+    double d = threeQuarters;      // IMPLICIT fires automatically -> 0.75
+    Console.WriteLine(d + 1);      // 1.75 - the Fraction was used as a double
+
+    double half = 0.5;
+    Fraction f = (Fraction)half;   // EXPLICIT - the (Fraction) cast is REQUIRED
+    // Fraction f = half;          // COMPILE ERROR: no implicit double -> Fraction
+
+When does the implicit one fire? Any time the compiler already KNOWS the target
+type it should aim for:
+
+    double d = threeQuarters;       // assignment
+    Math.Sqrt(threeQuarters);       // method argument typed as double
+    double Get() => threeQuarters;  // return value
+
+Key points / gotchas:
+- The TARGET TYPE is the trigger. No target type -> no implicit conversion. This
+  is why `var d = threeQuarters;` gives you a Fraction, NOT a double: `var` has
+  nothing to convert toward. (Same root cause as the faceted PersonBuilder `var`
+  pitfall - see FacetedBuilderNotes.txt.)
+- Conversions are NOT CHAINED. C# applies AT MOST ONE user-defined conversion. If
+  A->B and B->C both exist, `C c = a;` does NOT compile - the compiler won't hop
+  A->B->C for you; you'd convert in two explicit steps.
+- `implicit` should NEVER throw and NEVER lose data (the .NET Framework Design
+  Guidelines rule). If it might, make it `explicit` so the visible cast warns the
+  reader. This is exactly why `int`->`long` is implicit in C# but `long`->`int`
+  is explicit.
+- Provide a NAMED alternative next to the operator (analyzer CA2225): e.g. a
+  `ToDouble()` method or a `Fraction.FromDouble(...)` factory, for callers in
+  languages that don't understand C# conversion operators.
+- A given source->target PAIR can have EITHER implicit OR explicit, not both -
+  they would collide. Declaring `implicit` already lets you write an explicit
+  cast too, so you never need both for the same pair.
+
+Real use in this repo: the faceted PersonBuilder uses this exact feature as an
+invisible Build():
+
+    public static implicit operator Person(PersonBuilder pb) => pb.person;
+
+Assigning the builder to a `Person` variable fires the conversion and hands back
+the finished object. See FacetedBuilderNotes.txt for that specific case and its
+trade-offs (including the `var` pitfall and the CA2225 note).

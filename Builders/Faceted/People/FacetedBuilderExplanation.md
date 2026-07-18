@@ -401,12 +401,24 @@ it into a `Person`.
 > `pb.Address.At("Paris", ...)`), you also mutate the already-extracted `person`. A
 > builder here is **single-use by intent**; treat it as spent after conversion.
 
+> **⚠ Throws on a null builder.** `PersonBuilder pb = null; Person p = pb;` still runs
+> the operator, and `pb.person` throws `NullReferenceException`. Harmless here (a null
+> builder is nonsensical), but it means this `implicit` conversion *can* throw — which
+> the guideline says implicit conversions shouldn't. A small point in favour of
+> `explicit`.
+
 > **Style aside (beyond the author):** some style guides distrust `implicit`
 > conversions because they hide work (here, "finish the build"). `explicit` would make
 > the finish visible — `var person = (Person)pb.Address.At(...)...;` — and would also
 > defuse the `var` pitfall above (an explicit cast forces the conversion). The author
 > chose `implicit` for the seamless `Person person = ...` finish line; that's a
 > reasonable ergonomic call, just know the trade-off.
+
+> **Beyond the author — pair it with a named method (CA2225).** Analyzer **CA2225**
+> ("operator overloads have named alternates") suggests exposing a named equivalent —
+> e.g. `Person Build()` or `ToPerson()` — next to the operator, so callers in languages
+> without operator overloading can still finish the build. Ironic here (the whole point
+> was to skip `Build()`), but it's the standard convention.
 
 ---
 
@@ -538,6 +550,11 @@ Pulled together for a quick review pass. None break the demo; all are worth know
 - **Facet ctors are `public`**, so a caller *could* `new PersonAddressFacetBuilder(p)`
   directly and bypass the facade. Not dangerous (it still needs a `Person`), just
   broader surface than necessary; `internal` would keep facets an implementation detail.
+- **⚠ Implicit operator throws on `null`.** Converting a null `PersonBuilder` runs the
+  operator and hits `pb.person` → `NullReferenceException`; an `implicit` conversion is
+  conventionally expected never to throw. See §8.
+- **⚠ No named alternate for the operator (CA2225).** Convention is to pair a conversion
+  operator with a named method (`Build()` / `ToPerson()`) for non-C# callers. See §8.
 - **Cosmetic** — the implicit operator is written block-bodied
   (`{ return pb.person; }`) while the notes file shows the equivalent
   expression-bodied form — both compile identically. (The former `"Facated"`

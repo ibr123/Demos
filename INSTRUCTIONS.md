@@ -57,7 +57,12 @@
 - Resource files come from Dmitri Nesteruk's "Design Patterns in C# and .NET" course.
 -->
 
-- (none yet)
+- **`GeneralNotes.txt`** (root, under "Solution Items") holds general
+  programming notes that are NOT tied to a specific builder/pattern demo
+  (unlike e.g. `FacetedBuilderNotes.txt`, which is pattern-specific).
+  When adding a new note to it, separate it from the previous one with a
+  line of asterisks, e.g.:
+  `*************************************************************************`
 
 ---
 

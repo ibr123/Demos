@@ -76,6 +76,57 @@
 	  **ergonomic grouping, not for enforcement**.
 
 
+* CANONICAL (INHERITANCE) vs COMPOSITION (HAS-A) — TWO WAYS TO WIRE THE FACETS
+
+	(Note: "composition" here means HAS-A / holding a reference — NOT the GoF Composite
+	pattern. Same name-collision caution as Faceted vs Facade above.)
+
+	The facets need ONE ability: from inside one facet, jump to another (call `.Job`
+	while in the address facet, or `.Address` while in the job facet). There are two
+	ways to hand them that ability — this code uses the first.
+
+	CANONICAL (what THIS code does) — inheritance, "I AM a builder too":
+	      public class PersonAddressFacetBuilder : PersonBuilder   // the ": PersonBuilder"
+	- Because the address builder IS-A PersonBuilder, it INHERITS the two doors
+	  `.Address` and `.Job` (and the implicit `operator Person`) from the facade. You
+	  write those ONCE on PersonBuilder and every facet gets them for free.
+	- So the hop is ONE direct step. You never stop at a "PersonBuilder" in between —
+	  the address builder already IS one, so it already carries the `.Job` door:
+
+	      address builder ──.Job──▶ job builder      (one step, direct)
+
+	- It works both ways (the job builder inherited the same doors), so you can bounce
+	  forever:  address ──.Job──▶ job ──.Address──▶ address ──.Job──▶ job ...
+
+	COMPOSITION — "I just HOLD the data", no ": PersonBuilder":
+	      public class PersonAddressFacetBuilder                    // no base class
+	      {
+	          private readonly Person _person;                     // carries the shared data
+	      }
+	- The facet now inherits NOTHING, so you must RE-TYPE `.Address`, `.Job` and the
+	  `operator Person` BY HAND on every facet. That grows fast: with N facets, each
+	  facet re-declares all N doors (N x N wiring) instead of writing them once on the base.
+
+	TRADE-OFF (in one breath):
+	- Inheritance (canonical) -> least code. But a job builder isn't really "a kind of
+	  person builder" (a mild lie), and the shared `person` must be left `protected` so
+	  the subclasses can grab it. It's also what allowed the old
+	  `new()`-instead-of-`new(person)` bug (see THE SHARED REFERENCE below).
+	- Composition -> more honest, keeps `person` private, and that bug becomes a COMPILE
+	  error (the ctor forces you to pass the shared Person). Price: the repetitive
+	  re-wiring above.
+
+	Bottom line: with only two facets, inheritance is the lighter, standard (canonical)
+	choice — which is why this code uses it. The more facets you add, the more the
+	composition re-wiring costs, and the more inheritance pays off.
+
+	Deep-understanding note — the hop threads the SAME Person:
+	- When the address builder runs its inherited `.Job` (`=> new(person)`), the `person`
+	  it passes is the address builder's OWN `person` field — which is the shared one. So
+	  every hop keeps handing along the SAME Person. That's exactly why it has to be
+	  `new(person)` and NOT `new()`.
+
+
 * THE SHARED REFERENCE — ONE Person, MANY builders (the crux of the whole pattern)
 
 	- `protected Person person = new();` in PersonBuilder allocates the Person exactly
@@ -99,6 +150,57 @@
 	  Each facet would edit its own copy, the facets would never merge, and the final
 	  object would be missing whatever the other facet set. The pattern silently DEPENDS
 	  on Person being a class.
+
+
+* WHY PROTECTED, AND WHY PASS THE OBJECT — TWO DIFFERENT JOBS
+
+	Passing the Person and marking the field `protected` are NOT redundant — they do
+	two different jobs:
+	- PASSING (`new(person)` -> ctor)  = TRANSPORT: how the shared Person gets IN.
+	- `protected` on the field         = ACCESS:    permission to TOUCH it afterwards.
+
+	Why `protected` specifically (the ctor param does NOT make it redundant):
+	- The facet METHODS read the inherited field constantly, e.g. inside
+	  PersonAddressFacetBuilder.At(...):
+	      person.City = city;
+	  `person` lives on the BASE (PersonBuilder); this method lives on the SUBCLASS, and
+	  a subclass touching a base field REQUIRES `protected`.
+	- If it were `private`, BOTH of these stop compiling in the facet:
+	      this.person = person;   // 'PersonBuilder.person' is inaccessible (protection level)
+	      person.City = city;     // same error
+	- C# subtlety: a `private` base field IS inherited (it physically exists inside every
+	  facet object) but is NOT accessible BY NAME from the subclass. `protected` is the
+	  modifier that says "heirs may touch this."
+	- You can't dodge it with a base ctor either: even if `: base(person)` did the write,
+	  the At/Makes methods STILL read `person`, so it must stay `protected` regardless.
+
+	Q: "If Person isn't passed in, do address and job stop sharing?"  ->  YES.
+	- Without the passed reference each facet runs the base initializer `person = new()`
+	  and gets its OWN Person; the two never merge (the old half-empty bug).
+	- Sharpen one word: they don't share the same VARIABLE, they share the same OBJECT.
+	  Each builder always has its OWN `person` field (its own variable); passing makes
+	  all those fields POINT AT one Person:
+
+	      passed in (shared object):
+	          addressBuilder.person ─┐
+	          jobBuilder.person ─────┴──▶ [ one Person ]   (address + job compose)
+
+	      not passed (each runs person = new()):
+	          addressBuilder.person ──▶ [ Person A ]
+	          jobBuilder.person ─────▶ [ Person B ]        (never merge -> half-empty)
+
+	Q: "Is `protected` what lets any inheriting class use this shared field?"  ->  YES.
+	- `protected` = PersonBuilder ITSELF plus ANY subclass (the two facets, and any
+	  future subclass) may read/write `person`. Unrelated/outside classes may not.
+
+	One-line model: PASSING makes them share the same object; `protected` gives the
+	subclass permission to touch that field at all. You need BOTH — no passing means no
+	sharing (each gets its own object); no `protected` means the facet can't even compile
+	`person.City = ...`.
+
+	(Contrast COMPOSITION: there the facet stores the Person in its OWN `private readonly`
+	field and never reaches into a base, so it CAN be private. `protected` is the rent the
+	inheritance wiring charges — see CANONICAL vs COMPOSITION above.)
 
 
 * THE IMPLICIT OPERATOR — the invisible Build() (there is NO .Build() here)
@@ -127,10 +229,66 @@
 	  (e.g. `pb.Address.At("Paris", ...)`), you also mutate the already-extracted `person`.
 	  A builder here is single-use by intent; treat it as spent after conversion.
 
+	Throws on a null builder:
+	- `PersonBuilder pb = null; Person p = pb;` still runs the operator, and `pb.person`
+	  throws NullReferenceException. Harmless here (a null builder is nonsensical), but it
+	  means this implicit conversion CAN throw — which the guideline says implicit
+	  conversions shouldn't. A small point in favour of `explicit`.
+
 	Style aside:
 	- It's `implicit` (no cast) for seamless assignment. `explicit` would force `(Person)pb`.
 	  Some style guides distrust implicit conversions (they hide work), but here it's the
 	  deliberate, ergonomic finish line.
+
+	Named alternate (CA2225):
+	- Convention (Microsoft analyzer CA2225) is to pair a conversion operator with a
+	  named method — e.g. `Build()` or `ToPerson()` — so callers in languages without
+	  operator overloading can still finish. Ironic here (the point was to skip Build()),
+	  but it's the standard convention.
+
+
+* OPERATOR vs .Build() — TWO WAYS TO FINISH THE BUILD (why this code uses the operator)
+
+	Both do the SAME thing — hand back the finished Person. They differ only in HOW the
+	call site asks for it. This code uses the implicit operator; a plain Build() method
+	is the more common, GoF-standard alternative:
+
+	    // A) implicit operator (this code) — finish is INVISIBLE, target type drives it
+	    public static implicit operator Person(PersonBuilder pb) => pb.person;
+	    Person person = pb.Address.At(...).Job.Makes(10);          // no terminal call
+
+	    // B) Build() method — finish is EXPLICIT, an ordinary terminal call
+	    public Person Build() => person;
+	    Person person = pb.Address.At(...).Job.Makes(10).Build();  // ends in .Build()
+
+	Side by side:
+
+	| Aspect               | implicit operator (this code)   | .Build() method          |
+	|----------------------|---------------------------------|--------------------------|
+	| Finish syntax        | invisible (target type coerces) | explicit `.Build()` call |
+	| Works with `var`?    | NO — keeps builder type         | YES — infers Person      |
+	| Discoverable?        | hidden (no IntelliSense)        | yes (a real method)      |
+	| GoF-standard?        | no (a C# trick)                 | yes (canonical step)     |
+	| CA2225 named alt.    | trips it — add a name           | it IS the named alt.     |
+	| Cross-language use   | awkward (user conversion)       | trivial (plain method)   |
+	| Inherited by facets? | yes (once, on the base)         | yes (once, on the base)  |
+
+	Key trade-offs:
+	- The operator's ONE selling point is the seamless finish line: `Person p = chain;`
+	  with nothing tacked on the end. Build() makes you type `.Build()`, but in exchange
+	  the finish is VISIBLE and self-documenting.
+	- The `var` footgun is the big one: `var p = chain;` silently keeps a BUILDER with the
+	  operator (no target type -> no conversion runs), whereas with Build() `var` infers
+	  Person and just works. (See PITFALL in THE IMPLICIT OPERATOR above.)
+	- Both are declared ONCE on the base PersonBuilder and inherited by every facet, so
+	  neither wins on the cross-facet angle — that part is a tie.
+	- `explicit operator` is a middle ground: `Person p = (Person)chain;` — still no named
+	  method, but the visible cast forces the conversion, which defuses the `var` footgun.
+
+	Bottom line: the operator buys a clean call site at the cost of being hidden,
+	`var`-fragile, and CA2225-flagged. Build() is the safer, more conventional default.
+	Plenty of real builders ship BOTH — a Build() for clarity/interop, plus an implicit
+	operator for the seamless finish.
 
 
 * HOW IT WORKS (mechanics, member by member)
